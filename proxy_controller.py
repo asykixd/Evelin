@@ -1,8 +1,4 @@
 import uiautomator2 as u2
-"""
-proxy_controller.py — идеальный оператор для управления HTTPS и SOCKS5 прокси, с поддержкой CyberYozh API
-"""
-
 import requests
 import os
 import json
@@ -11,10 +7,7 @@ from config_api import load_api_keys
 
 class ProxyController:
     def setup_proxydroid(self, device_id, proxy):
-        """
-        Автоматически настраивает ProxyDroid на Android-устройстве через uiautomator2.
-        Требуется установленное приложение ProxyDroid и подключенное устройство.
-        """
+
         d = u2.connect_usb(device_id)
         d.app_start("org.proxydroid")
         d(text="Host").set_text(proxy["host"])
@@ -84,10 +77,6 @@ class ProxyController:
             self.cyberyozh_proxies = []
 
     def set_proxy(self, proxy: Optional[Dict] = None) -> bool:
-        """
-        Устанавливает HTTPS/SOCKS5 прокси на устройство (или в систему).
-        Если proxy не указан — берёт следующий из списка.
-        """
         if proxy is None:
             proxy = self.get_next_proxy()
         if not proxy:
@@ -95,24 +84,16 @@ class ProxyController:
             return False
         self.current_proxy = proxy
         # Здесь должна быть интеграция с Android/iOS/Windows для установки прокси
-        # Например, через adb shell settings или сторонние приложения
         print(f"[ProxyController] Установлен прокси: {proxy}")
         return True
 
     def remove_proxy(self) -> bool:
-        """
-        Удаляет текущий прокси (сбрасывает настройки).
-        """
         self.current_proxy = None
         # Здесь должна быть интеграция для сброса прокси
         print("[ProxyController] Прокси удалён.")
         return True
 
     def get_next_proxy(self) -> Optional[Dict]:
-        """
-        Возвращает следующий прокси из списка (с ротацией CyberYozh).
-        """
-        # Сначала используем CyberYozh, если есть
         if self.cyberyozh_proxies:
             proxy = self.cyberyozh_proxies[self.cyberyozh_index % len(self.cyberyozh_proxies)]
             self.cyberyozh_index += 1
@@ -123,7 +104,6 @@ class ProxyController:
                 "login": proxy.get("connection_login", ""),
                 "password": proxy.get("connection_password", "")
             }
-        # Если нет CyberYozh — используем локальные
         if self.proxies:
             idx = self.cyberyozh_index % len(self.proxies)
             self.cyberyozh_index += 1
@@ -131,16 +111,13 @@ class ProxyController:
         return None
 
     def rotate_proxy(self):
-        """
-        Ротирует прокси после каждого аккаунта (вызывает set_proxy с новым прокси).
-        """
         proxy = self.get_next_proxy()
         self.set_proxy(proxy)
 
 # Пример использования:
 if __name__ == "__main__":
     pc = ProxyController()
-    pc.set_proxy()  # Установить первый прокси
+    pc.set_proxy()
     # ...
-    pc.rotate_proxy()  # Ротировать после аккаунта
-    pc.remove_proxy()  # Удалить прокси
+    pc.rotate_proxy()
+    pc.remove_proxy()

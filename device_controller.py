@@ -57,17 +57,10 @@ class AndroidDevice:
 
 
 class AndroidDeviceController:
-    """High-level Android device operations for TikTok automation.
-
-    This class mirrors the iOS `DeviceController` API where practical,
-    but uses uiautomator2/adb for Android.
-    """
-
     def __init__(self):
         self.config = Config()
         self._sessions: Dict[str, object] = {}
 
-    # --- Discovery ---
     def scan_devices(self) -> List[Dict]:
         devices: List[Dict] = []
         if adb is None:
@@ -124,11 +117,6 @@ class AndroidDeviceController:
             return False
 
     def install_tiktok(self, device_id: str, apk_path: Optional[str] = None) -> bool:
-        """Install TikTok on device.
-
-        Note: installing from Play Store is not automated here; supply an APK
-        path or pre-install manually.
-        """
         package = "com.zhiliaoapp.musically"
         if self.is_app_installed(device_id, package):
             return True
@@ -164,21 +152,17 @@ class AndroidDeviceController:
 
     # --- Interactions ---
     def tap(self, device_id: str, x: int, y: int) -> bool:
-        """Надежное нажатие через ADB"""
         x, y = int(x), int(y)
-        time.sleep(1)  # Пауза перед нажатием
+        time.sleep(1)
         try:
             d = adb.device(serial=device_id)
             d.shell(["input", "tap", str(x), str(y)])
-            time.sleep(1)  # Пауза после нажатия
+            time.sleep(1)
             return True
         except Exception:
             return False
     
         def reliable_tap(self, device_id: str, x: int, y: int) -> bool:
-            """
-            Универсальный надёжный тап (ADB + uiautomator2, с паузой).
-            """
             x, y = int(x), int(y)
             time.sleep(0.5)
             try:
@@ -198,34 +182,10 @@ class AndroidDeviceController:
                 pass
             return False
 
-        def set_birth_date(self, device_id: str, year: int, month: int, day: int) -> bool:
-            """
-            Универсальный метод установки даты рождения через роллер/пикер.
-            Можно доработать под конкретный UI.
-            """
-            # Пример: тап по координатам роллеров (можно заменить на свайпы/drag)
-            # Координаты должны быть определены в COORDS или переданы явно
-            coords = {
-                "year": (600, 1200),
-                "month": (420, 1200),
-                "day": (270, 1200)
-            }
-            # Тап по каждому роллеру (можно заменить на свайп/drag для реального выбора)
-            self.reliable_tap(device_id, *coords["year"])
-            time.sleep(0.5)
-            self.reliable_tap(device_id, *coords["month"])
-            time.sleep(0.5)
-            self.reliable_tap(device_id, *coords["day"])
-            time.sleep(0.5)
-            # Здесь можно добавить логику свайпа/drag для точного выбора значения
-            return True
     def wake_device(self, device_id: str) -> bool:
-        """Пробуждаем устройство"""
         try:
             d = adb.device(serial=device_id)
             sess = self._ensure_session(device_id)
-            
-            # Включаем экран
             d.shell(["input", "keyevent", "KEYCODE_WAKEUP"])
             d.shell(["input", "keyevent", "KEYCODE_MENU"])
             sess.screen_on()
@@ -249,7 +209,6 @@ class AndroidDeviceController:
 
     # --- Proxy configuration ---
     def set_http_proxy(self, device_id: str, host: str, port: int) -> bool:
-        """Установить HTTP proxy на устройстве."""
         if not adb:
             return False
         try:
@@ -261,7 +220,6 @@ class AndroidDeviceController:
             return False
 
     def clear_http_proxy(self, device_id: str) -> bool:
-        """Сбросить HTTP proxy на устройстве."""
         if not adb:
             return False
         try:
@@ -272,7 +230,6 @@ class AndroidDeviceController:
             return False
 
     def get_proxy_status(self, device_id: str) -> dict:
-        """Получить текущий статус proxy."""
         if not adb:
             return {"success": False, "error": "ADB не доступен"}
         try:
@@ -287,7 +244,6 @@ class AndroidDeviceController:
             return {"success": False, "error": str(e)}
 
     def test_proxy_connection(self, device_id: str, test_url: str = "http://httpbin.org/ip") -> dict:
-        """Проверить работу proxy через curl."""
         if not adb:
             return {"success": False, "error": "ADB не доступен"}
         try:
@@ -301,7 +257,7 @@ class AndroidDeviceController:
             return {"success": False, "error": str(e)}
 
     def set_wifi_proxy_via_ui(self, device_id: str, ssid: str, host: str, port: int) -> bool:
-        """Попытка установить Wi-Fi proxy через системные настройки (может не работать на всех устройствах)."""
+        # may not work on some devices
         if not adb:
             return False
         try:
@@ -313,19 +269,15 @@ class AndroidDeviceController:
             return False
 
     def execute_adb_command(self, device_id: str, command: str) -> Dict:
-        """Выполнить ADB команду на устройстве"""
         if adb is None:
             return {"success": False, "error": "ADB не доступен"}
         try:
             d = adb.device(serial=device_id)
             
-            # Разбираем команду на части
             if command.startswith("shell "):
-                # Убираем "shell " и разбиваем на команды
                 shell_command = command[6:].split()
                 result = d.shell(shell_command)
             else:
-                # Выполняем как обычную ADB команду
                 result = d.shell([command])
             
             return {
@@ -340,183 +292,6 @@ class AndroidDeviceController:
                 "command": command
             }
 
-    def set_date_picker(self, device_id: str, day: int = 5, month: int = 3, year: int = 1994) -> Dict:
-        """Устанавливает дату в роллерах выбора даты (только год 1994)"""
-        try:
-            console.print(f"[blue]📅 Устанавливаем год: {year}[/blue]")
-            
-            # Загружаем координаты из config.json
-            try:
-                with open('config.json', 'r', encoding='utf-8') as f:
-                    config_data = json.load(f)
-                ui_coordinates = config_data.get('ui_coordinates', {})
-            except:
-                ui_coordinates = {}
-            
-            # Получаем координаты роллера года
-            year_coords = ui_coordinates.get('birth_year', {'x': 559, 'y': 1153})
-            
-            # Устанавливаем только год (1994)
-            result_year = self._set_picker_value(device_id, year_coords['x'], year_coords['y'], year, "year")
-            
-            if result_year.get("success"):
-                console.print(f"[green]✅ Год установлен: {year}[/green]")
-                return {"success": True, "year": year}
-            else:
-                error_msg = f"Ошибка установки года: {result_year.get('error', 'unknown')}"
-                console.print(f"[red]❌ {error_msg}[/red]")
-                return {"success": False, "error": error_msg}
-                
-        except Exception as e:
-            error_msg = f"Критическая ошибка установки года: {str(e)}"
-            console.print(f"[red]❌ {error_msg}[/red]")
-            return {"success": False, "error": error_msg}
-    
-    def _set_picker_value(self, device_id: str, x: int, y: int, target_value: int, picker_type: str) -> Dict:
-        """Устанавливает значение в роллере (колесике выбора)"""
-        try:
-            console.print(f"[blue]🎯 Устанавливаем {picker_type}: {target_value} в координатах ({x}, {y})[/blue]")
-            
-            # Сначала нажимаем на роллер для активации
-            self.tap(device_id, x, y)
-            time.sleep(0.5)
-            
-            # Определяем стратегию в зависимости от типа
-            if picker_type == "day":
-                # Для дня: устанавливаем 5
-                return self._scroll_to_day(device_id, x, y, target_value)
-            elif picker_type == "month":
-                # Для месяца: устанавливаем март (3)
-                return self._scroll_to_month(device_id, x, y, target_value)
-            elif picker_type == "year":
-                # Для года: устанавливаем 1994
-                return self._scroll_to_year(device_id, x, y, target_value)
-            else:
-                return {"success": False, "error": f"Неизвестный тип роллера: {picker_type}"}
-                
-        except Exception as e:
-            return {"success": False, "error": str(e)}
-    
-    def _scroll_to_day(self, device_id: str, x: int, y: int, target_day: int) -> Dict:
-        """Прокручивает роллер дня до нужного значения (5)"""
-        try:
-            # TikTok ставит сегодняшнюю дату, например 19 августа
-            # Нужно прокрутить от текущего дня до 5
-            from datetime import datetime
-            current_day = datetime.now().day
-            
-            if current_day > target_day:
-                # Нужно прокрутить вверх (к меньшим числам)
-                swipes_needed = current_day - target_day
-                direction = "up"
-            else:
-                # Нужно прокрутить вниз (к большим числам)
-                swipes_needed = target_day - current_day
-                direction = "down"
-            
-            console.print(f"[blue]📅 Прокручиваем день: от {current_day} до {target_day}, {swipes_needed} свайпов {direction}[/blue]")
-            
-            for i in range(swipes_needed):
-                if direction == "up":
-                    self.swipe(device_id, x, y + 20, x, y - 20, 0.2)  # Свайп вверх
-                else:
-                    self.swipe(device_id, x, y - 20, x, y + 20, 0.2)  # Свайп вниз
-                time.sleep(0.3)
-            
-            self.tap(device_id, x, y)
-            time.sleep(0.5)
-            
-            console.print(f"[green]✅ День установлен: {target_day}[/green]")
-            return {"success": True, "value": target_day}
-            
-        except Exception as e:
-            return {"success": False, "error": str(e)}
-    
-    def _scroll_to_month(self, device_id: str, x: int, y: int, target_month: int) -> Dict:
-        """Прокручивает роллер месяца до нужного значения (март = 3)"""
-        try:
-            # TikTok ставит сегодняшний месяц, например август (8)
-            from datetime import datetime
-            current_month = datetime.now().month
-            
-            if current_month > target_month:
-                # Нужно прокрутить вверх (к меньшим месяцам)
-                swipes_needed = current_month - target_month
-                direction = "up"
-            else:
-                # Нужно прокрутить вниз (к большим месяцам)
-                swipes_needed = target_month - current_month
-                direction = "down"
-            
-            console.print(f"[blue]📅 Прокручиваем месяц: от {current_month} до {target_month}, {swipes_needed} свайпов {direction}[/blue]")
-            
-            for i in range(swipes_needed):
-                if direction == "up":
-                    self.swipe(device_id, x, y + 20, x, y - 20, 0.2)  # Свайп вверх
-                else:
-                    self.swipe(device_id, x, y - 20, x, y + 20, 0.2)  # Свайп вниз
-                time.sleep(0.3)
-            
-            self.tap(device_id, x, y)
-            time.sleep(0.5)
-            
-            console.print(f"[green]✅ Месяц установлен: {target_month} (март)[/green]")
-            return {"success": True, "value": target_month}
-            
-        except Exception as e:
-            return {"success": False, "error": str(e)}
-    
-    def _scroll_to_year(self, device_id: str, x: int, y: int, target_year: int) -> Dict:
-        """Прокручивает роллер года до нужного значения"""
-        try:
-            # Сначала стабилизируем роллер
-            console.print(f"[blue]📅 Стабилизируем роллер года...[/blue]")
-            self.tap(device_id, x, y)
-            time.sleep(1)
-            
-            # TikTok по умолчанию ставит текущий год минус 1
-            from datetime import datetime
-            current_year = datetime.now().year - 1
-            
-            # Рассчитываем количество свайпов
-            if current_year > target_year:
-                swipes_needed = current_year - target_year
-                direction = "down"  # Свайп вниз (к меньшим годам)
-            else:
-                swipes_needed = target_year - current_year
-                direction = "up"    # Свайп вверх (к большим годам)
-            
-            console.print(f"[blue]📅 Прокручиваем год: от {current_year} до {target_year}, {swipes_needed} свайпов {direction}[/blue]")
-            
-            # Ограничиваем до 21 свайпа
-            max_swipes = min(swipes_needed, 21)
-            
-            # Быстрые свайпы с большим расстоянием
-            for i in range(max_swipes):
-                if direction == "down":
-                    # Свайп вниз (к меньшим годам) - 60 пикселей
-                    self.swipe(device_id, x, y - 60, x, y + 60, 0.2)
-                else:
-                    # Свайп вверх (к большим годам) - 60 пикселей
-                    self.swipe(device_id, x, y + 60, x, y - 60, 0.2)
-                
-                time.sleep(0.1)
-                
-                if (i + 1) % 10 == 0:
-                    console.print(f"[blue]📅 Свайп {i+1}/{max_swipes}[/blue]")
-            
-            # Финальная стабилизация
-            console.print(f"[blue]📅 Финальная стабилизация...[/blue]")
-            self.tap(device_id, x, y)
-            time.sleep(1)
-            
-            console.print(f"[green]✅ Год установлен: {target_year} (выполнено {max_swipes} свайпов)[/green]")
-            return {"success": True, "value": target_year, "swipes_performed": max_swipes}
-            
-        except Exception as e:
-            return {"success": False, "error": str(e)}
-
-    # --- Cleanup ---
     def cleanup(self):
         for serial, sess in list(self._sessions.items()):
             try:
