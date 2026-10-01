@@ -62,6 +62,80 @@ export interface TouchEvent {
 
 export type NavKey = "back" | "home" | "recents" | "power" | "volume_up" | "volume_down";
 
+// --- Сценарии (пресеты) ---
+
+/** Точка жеста; `t` — миллисекунды от начала касания. */
+export interface GesturePoint {
+  t: number;
+  action: TouchAction;
+  x: number;
+  y: number;
+}
+
+export interface StepBase {
+  id: string;
+  /** Выключенный шаг пропускается. */
+  enabled: boolean;
+  /** Выполнять только на 1-м, (N+1)-м, (2N+1)-м… повторе. 1 или пусто — каждый раз. */
+  everyNth?: number;
+}
+
+export type StepBody =
+  | { type: "tap"; x: number; y: number }
+  | { type: "swipe"; x1: number; y1: number; x2: number; y2: number; duration: number }
+  | { type: "gesture"; points: GesturePoint[] }
+  | { type: "key"; key: NavKey }
+  | { type: "text"; text: string }
+  | { type: "wait"; ms: number; maxMs?: number }
+  | { type: "launchApp"; package: string }
+  | { type: "stopApp"; package: string }
+  | { type: "clearAppData"; package: string }
+  | { type: "proxyNext" }
+  | { type: "proxyClear" }
+  | { type: "shell"; command: string }
+  | { type: "runScenario"; scenarioId: string };
+
+export type Step = StepBase & StepBody;
+export type StepType = StepBody["type"];
+
+export interface Scenario {
+  id: string;
+  name: string;
+  steps: Step[];
+  /** Сколько раз повторить; 0 — бесконечно, пока не остановят. */
+  repeat: number;
+  /** Пауза между повторами, мс. */
+  pauseMs: number;
+  /** Продолжать при ошибке шага вместо остановки сценария на этом устройстве. */
+  continueOnError: boolean;
+  updatedAt: number;
+}
+
+export type RunState = "running" | "done" | "failed" | "stopped";
+
+export interface RunStatus {
+  runId: string;
+  scenarioId: string;
+  scenarioName: string;
+  serial: string;
+  state: RunState;
+  /** Номер текущего повтора, с 1. */
+  iteration: number;
+  stepIndex: number;
+  stepCount: number;
+  error?: string;
+  startedAt: number;
+}
+
+export interface RecordingStatus {
+  serial: string;
+  startedAt: number;
+  events: number;
+  /** Удалось ли подключиться к сенсору телефона (getevent), чтобы записывать касания по самому телефону. */
+  physical: boolean;
+  physicalError?: string;
+}
+
 export interface FarmApi {
   devices: {
     list(): Promise<DeviceInfo[]>;
@@ -99,5 +173,25 @@ export interface FarmApi {
     assign(serials: string[]): Promise<DeviceResult[]>;
     clear(serials: string[]): Promise<DeviceResult[]>;
     test(serials: string[]): Promise<DeviceResult[]>;
+  };
+  scenarios: {
+    list(): Promise<Scenario[]>;
+    save(scenario: Scenario): Promise<Scenario[]>;
+    remove(id: string): Promise<Scenario[]>;
+    exportFile(id: string): Promise<boolean>;
+    /** Возвращает список и число импортированных сценариев с shell-шагами — их стоит проверить перед запуском. */
+    importFile(): Promise<{ scenarios: Scenario[]; imported: number; withShell: number }>;
+    run(id: string, serials: string[]): Promise<void>;
+    /** Без аргумента — остановить всё. */
+    stop(serials?: string[]): Promise<void>;
+    runs(): Promise<RunStatus[]>;
+    onRuns(listener: (runs: RunStatus[]) => void): () => void;
+  };
+  recorder: {
+    start(serial: string): Promise<RecordingStatus>;
+    /** Останавливает запись и сохраняет её как новый сценарий. */
+    stop(): Promise<Scenario | undefined>;
+    cancel(): Promise<void>;
+    onStatus(listener: (status: RecordingStatus | null) => void): () => void;
   };
 }

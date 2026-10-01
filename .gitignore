@@ -1,0 +1,22 @@
+# Secrets
+api_keys.json
+proxies.txt
+
+# Claude Code personal settings
+.claude/settings.local.json
+
+# Node / сборка
+node_modules/
+out/
+dist/
+*.tsbuildinfo
+
+# Скачивается в postinstall (scripts/fetch-server.mjs)
+resources/scrcpy-server
+resources/scrcpy-server.version
+
+# macOS
+.DS_Store
+
+# /device-check screenshots
+.claude/skills/device-check/out/

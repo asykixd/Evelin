@@ -1,8 +1,9 @@
 {
-  "name": "android-farm",
-  "version": "0.1.0",
+  "name": "evelin",
+  "productName": "Evelin",
+  "version": "0.2.0",
   "private": true,
-  "description": "Панель управления фермой Android-устройств",
+  "description": "Evelin — панель управления фермой Android-устройств",
   "main": "out/main/index.js",
   "type": "module",
   "scripts": {

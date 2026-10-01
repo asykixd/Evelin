@@ -4,13 +4,19 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { app, BrowserWindow, dialog, ipcMain, session, shell, type IpcMainEvent, type IpcMainInvokeEvent } from "electron";
 import { ReadableStream } from "@yume-chan/stream-extra";
+import { isInvalidScenario, NAV_KEYS, PACKAGE_RE } from "@shared/scenario";
 import type { DeviceResult, NavKey, TouchEvent } from "@shared/types";
 import { DeviceManager, shellCommand } from "./devices";
 import { MirrorManager } from "./mirror";
 import { isValidHostPort, ProxyStore } from "./proxies";
+import { Recorder } from "./recorder";
+import { ScenarioRunner } from "./runner";
+import { ScenarioStore } from "./scenarios";
 
 const devices = new DeviceManager();
 const proxies = new ProxyStore(join(app.getPath("userData"), "proxy-settings.json"));
+const scenarios = new ScenarioStore(join(app.getPath("userData"), "scenarios.json"));
+const recorder = new Recorder(devices);
 let win: BrowserWindow | undefined;
 
 const mirror = new MirrorManager(
@@ -23,6 +29,26 @@ const mirror = new MirrorManager(
   },
 );
 
+// --- Прокси на устройстве: общие для кнопок в интерфейсе и для шагов сценариев ---
+
+async function assignNextProxy(serial: string): Promise<string> {
+  const p = proxies.next();
+  if (!p) throw new Error("Нет доступных прокси");
+  if (!/^https?$/.test(p.type)) throw new Error(`Системный прокси Android поддерживает только HTTP, а не ${p.type}`);
+  if (!isValidHostPort(p.host, p.port)) throw new Error("Некорректный адрес прокси");
+  const hostPort = `${p.host}:${p.port}`;
+  if (!(await devices.setProxy(serial, hostPort))) throw new Error("Настройка не применилась");
+  void devices.refresh(serial);
+  return p.login ? `${hostPort} (внимание: логин/пароль системным прокси не поддерживаются)` : hostPort;
+}
+
+async function clearProxy(serial: string): Promise<void> {
+  if (!(await devices.clearProxy(serial))) throw new Error("Прокси не сбросился");
+  void devices.refresh(serial);
+}
+
+const runner = new ScenarioRunner({ devices, mirror, scenarios, assignNextProxy, clearProxy });
+
 const PRELOAD = fileURLToPath(new URL("../preload/index.cjs", import.meta.url));
 const RENDERER_HTML = fileURLToPath(new URL("../renderer/index.html", import.meta.url));
 const DEV_URL = !app.isPackaged ? process.env.ELECTRON_RENDERER_URL : undefined;
@@ -33,7 +59,7 @@ function createWindow(): void {
     height: 900,
     minWidth: 960,
     minHeight: 600,
-    title: "Android Farm",
+    title: "Evelin",
     backgroundColor: "#0f1115",
     webPreferences: {
       preload: PRELOAD,
@@ -109,9 +135,7 @@ function finite(value: unknown): number {
   return value;
 }
 
-const NAV_KEYS = new Set<NavKey>(["back", "home", "recents", "power", "volume_up", "volume_down"]);
 const TOUCH_ACTIONS = new Set(["down", "move", "up"]);
-const PACKAGE_RE = /^[a-zA-Z][a-zA-Z0-9_]*(\.[a-zA-Z][a-zA-Z0-9_]*)+$/;
 
 function streamOf(bytes: Uint8Array): ReadableStream<Uint8Array> {
   return new ReadableStream<Uint8Array>({
@@ -141,16 +165,25 @@ function registerIpc(): void {
   on("control:touch", (list: unknown, ev: unknown) => {
     const e = ev as TouchEvent;
     if (!e || !TOUCH_ACTIONS.has(e.action)) return;
-    return mirror.touch(serials(list), { action: e.action, x: finite(e.x), y: finite(e.y) });
+    const targets = serials(list);
+    const event: TouchEvent = { action: e.action, x: finite(e.x), y: finite(e.y) };
+    recorder.captureTouch(targets, event);
+    return mirror.touch(targets, event);
   });
   on("control:scroll", (list: unknown, x: unknown, y: unknown, dx: unknown, dy: unknown) =>
     mirror.scroll(serials(list), finite(x), finite(y), finite(dx), finite(dy)),
   );
   on("control:key", (list: unknown, key: unknown) => {
-    if (NAV_KEYS.has(key as NavKey)) return mirror.key(serials(list), key as NavKey);
+    if (!NAV_KEYS.includes(key as NavKey)) return;
+    const targets = serials(list);
+    recorder.captureKey(targets, key as NavKey);
+    return mirror.key(targets, key as NavKey);
   });
   on("control:text", (list: unknown, text: unknown) => {
-    if (typeof text === "string" && text.length > 0 && text.length <= 1000) return mirror.text(serials(list), text);
+    if (typeof text !== "string" || text.length === 0 || text.length > 1000) return;
+    const targets = serials(list);
+    recorder.captureStep(targets, { type: "text", text });
+    return mirror.text(targets, text);
   });
 
   // Пакетные операции
@@ -162,7 +195,9 @@ function registerIpc(): void {
 
   handle("batch:launchApp", (list: unknown, pkg: unknown) => {
     if (typeof pkg !== "string" || !PACKAGE_RE.test(pkg)) throw new Error("Некорректное имя пакета");
-    return devices.forEach(serials(list), async (s) => {
+    const targets = serials(list);
+    recorder.captureStep(targets, { type: "launchApp", package: pkg });
+    return devices.forEach(targets, async (s) => {
       const out = await devices.shell(s, shellCommand("monkey", "-p", pkg, "-c", "android.intent.category.LAUNCHER", "1"));
       if (/No activities found|monkey aborted/i.test(out)) throw new Error(`Пакет ${pkg} не найден или не запускается`);
     });
@@ -243,30 +278,8 @@ function registerIpc(): void {
     }
   });
 
-  handle("proxy:assign", async (list: unknown) => {
-    const targets = serials(list);
-    // Прокси раздаём заранее и последовательно, чтобы round-robin был детерминированным.
-    const plan = new Map(targets.map((s) => [s, proxies.next()] as const));
-    const results = await devices.forEach(targets, async (s) => {
-      const p = plan.get(s);
-      if (!p) throw new Error("Нет доступных прокси");
-      if (!/^https?$/.test(p.type)) throw new Error(`Системный прокси Android поддерживает только HTTP, а не ${p.type}`);
-      if (!isValidHostPort(p.host, p.port)) throw new Error("Некорректный адрес прокси");
-      const hostPort = `${p.host}:${p.port}`;
-      if (!(await devices.setProxy(s, hostPort))) throw new Error("Настройка не применилась");
-      return p.login ? `${hostPort} (внимание: логин/пароль системным прокси не поддерживаются)` : hostPort;
-    });
-    void Promise.all(targets.map((s) => devices.refresh(s)));
-    return results;
-  });
-  handle("proxy:clear", async (list: unknown) => {
-    const targets = serials(list);
-    const results = await devices.forEach(targets, async (s) => {
-      if (!(await devices.clearProxy(s))) throw new Error("Прокси не сбросился");
-    });
-    void Promise.all(targets.map((s) => devices.refresh(s)));
-    return results;
-  });
+  handle("proxy:assign", (list: unknown) => devices.forEach(serials(list), assignNextProxy));
+  handle("proxy:clear", (list: unknown) => devices.forEach(serials(list), clearProxy));
   handle("proxy:test", (list: unknown): Promise<DeviceResult[]> =>
     devices.forEach(serials(list), async (s) => {
       const proxy = await devices.getProxy(s);
@@ -279,6 +292,85 @@ function registerIpc(): void {
       return proxy ? `через ${proxy}: ${out}` : `без прокси: ${out}`;
     }),
   );
+
+  // Сценарии
+  const scenarioError = (e: unknown) => {
+    if (isInvalidScenario(e)) return new Error(`Некорректный сценарий: ${e.message}`);
+    return e;
+  };
+  handle("scenarios:list", () => scenarios.list());
+  handle("scenarios:save", async (raw: unknown) => {
+    try {
+      await scenarios.save(raw);
+    } catch (e) {
+      throw scenarioError(e);
+    }
+    return scenarios.list();
+  });
+  handle("scenarios:remove", async (id: unknown) => {
+    if (typeof id === "string") await scenarios.remove(id);
+    return scenarios.list();
+  });
+  handle("scenarios:export", async (id: unknown) => {
+    const scenario = typeof id === "string" ? scenarios.get(id) : undefined;
+    if (!scenario || !win) return false;
+    // Вложенные сценарии экспортируем вместе с основным, чтобы файл был самодостаточным.
+    const bundle = new Map([[scenario.id, scenario]]);
+    for (let added = true; added; ) {
+      added = false;
+      for (const s of [...bundle.values()])
+        for (const step of s.steps)
+          if (step.type === "runScenario" && !bundle.has(step.scenarioId)) {
+            const nested = scenarios.get(step.scenarioId);
+            if (nested) {
+              bundle.set(nested.id, nested);
+              added = true;
+            }
+          }
+    }
+    const safeName = scenario.name.replace(/[^\p{L}\p{N} _-]/gu, "").trim() || "scenario";
+    const pick = await dialog.showSaveDialog(win, { title: "Экспорт сценария", defaultPath: `${safeName}.evelin.json`, filters: [{ name: "Evelin", extensions: ["json"] }] });
+    if (pick.canceled || !pick.filePath) return false;
+    await writeFile(pick.filePath, JSON.stringify([...bundle.values()], null, 2));
+    return true;
+  });
+  handle("scenarios:import", async () => {
+    if (!win) return { scenarios: scenarios.list(), imported: 0, withShell: 0 };
+    const pick = await dialog.showOpenDialog(win, { title: "Импорт сценариев", filters: [{ name: "Evelin", extensions: ["json"] }], properties: ["openFile"] });
+    const file = pick.filePaths[0];
+    if (pick.canceled || !file) return { scenarios: scenarios.list(), imported: 0, withShell: 0 };
+    let imported;
+    try {
+      imported = await scenarios.import(JSON.parse(await readFile(file, "utf8")));
+    } catch (e) {
+      throw scenarioError(e instanceof SyntaxError ? new Error("файл не является JSON") : e);
+    }
+    const withShell = imported.filter((s) => s.steps.some((st) => st.type === "shell")).length;
+    return { scenarios: scenarios.list(), imported: imported.length, withShell };
+  });
+  handle("scenarios:run", (id: unknown, list: unknown) => {
+    if (typeof id !== "string") throw new Error("Сценарий не найден");
+    const targets = serials(list);
+    if (recorder.serial && targets.includes(recorder.serial)) throw new Error("На этом устройстве идёт запись — сначала остановите её");
+    runner.start(id, targets);
+  });
+  handle("scenarios:stop", (list: unknown) => runner.stop(list === undefined ? undefined : (Array.isArray(list) ? list.filter((s) => typeof s === "string") : [])));
+  handle("scenarios:runs", () => runner.list());
+
+  // Запись
+  handle("recorder:start", (s: unknown) => {
+    const target = serial(s);
+    if (runner.isBusy(target)) throw new Error("На устройстве выполняется сценарий — сначала остановите его");
+    return recorder.start(target);
+  });
+  handle("recorder:stop", async () => {
+    const target = recorder.serial;
+    const info = target ? devices.list().find((d) => d.serial === target) : undefined;
+    const scenario = recorder.stop(info?.model ?? target ?? "");
+    if (!scenario) return undefined;
+    return scenarios.save(scenario);
+  });
+  handle("recorder:cancel", () => recorder.cancel());
 }
 
 app.whenReady().then(async () => {
@@ -292,15 +384,22 @@ app.whenReady().then(async () => {
   session.defaultSession.setPermissionRequestHandler((_wc, _perm, cb) => cb(false));
 
   registerIpc();
-  await proxies.load();
+  await Promise.all([proxies.load(), scenarios.load()]);
 
   let known = new Set<string>();
   devices.onChange((list) => {
     const now = new Set(list.map((d) => d.serial));
-    for (const s of known) if (!now.has(s)) mirror.forgetDevice(s);
+    for (const s of known) {
+      if (now.has(s)) continue;
+      mirror.forgetDevice(s);
+      runner.stop([s]);
+      if (recorder.serial === s) recorder.cancel();
+    }
     known = now;
     win?.webContents.send("devices:changed", list);
   });
+  runner.onChange((runs) => win?.webContents.send("scenarios:runs", runs));
+  recorder.onStatus((status) => win?.webContents.send("recorder:status", status));
 
   createWindow();
 
@@ -316,6 +415,8 @@ app.whenReady().then(async () => {
 });
 
 app.on("before-quit", () => {
+  runner.stop();
+  recorder.cancel();
   void mirror.stopAll();
   void devices.stop();
 });

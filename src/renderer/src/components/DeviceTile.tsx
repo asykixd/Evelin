@@ -1,13 +1,16 @@
 import { useEffect, useRef, useState, type PointerEvent, type WheelEvent } from "react";
 import { BitmapVideoFrameRenderer, WebCodecsVideoDecoder } from "@yume-chan/scrcpy-decoder-webcodecs";
 import { ScrcpyVideoCodecId, type ScrcpyMediaStreamPacket } from "@yume-chan/scrcpy";
-import type { DeviceInfo, NavKey } from "@shared/types";
+import type { DeviceInfo, NavKey, RunStatus } from "@shared/types";
 import { route } from "../video";
 
 interface Props {
   device: DeviceInfo;
   selected: boolean;
   focused: boolean;
+  recording: boolean;
+  /** Выполняющийся на устройстве сценарий. */
+  run?: RunStatus;
   /** На какие устройства отправлять ввод с этой плитки (с учётом режима трансляции). */
   targets: () => string[];
   onToggleSelect: () => void;
@@ -16,7 +19,7 @@ interface Props {
 
 type Status = { kind: "connecting" } | { kind: "live" } | { kind: "error"; message: string };
 
-export function DeviceTile({ device, selected, focused, targets, onToggleSelect, onToggleFocus }: Props) {
+export function DeviceTile({ device, selected, focused, recording, run, targets, onToggleSelect, onToggleFocus }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [status, setStatus] = useState<Status>({ kind: "connecting" });
   const [attempt, setAttempt] = useState(0);
@@ -37,17 +40,19 @@ export function DeviceTile({ device, selected, focused, targets, onToggleSelect,
       renderer: new BitmapVideoFrameRenderer(canvas),
     });
     const writer = decoder.writable.getWriter();
-    let firstFrame = true;
+    // Поток может перезапуститься из main (например, сценарием) — тогда плитка снова оживает сама.
+    let live = false;
 
     const unroute = route(device.serial, {
       packet(packet) {
         writer.write(packet as ScrcpyMediaStreamPacket).catch(() => {});
-        if (firstFrame && packet.type === "data") {
-          firstFrame = false;
+        if (!live && packet.type === "data") {
+          live = true;
           setStatus({ kind: "live" });
         }
       },
       stopped(reason) {
+        live = false;
         if (!cancelled) setStatus({ kind: "error", message: reason });
       },
     });
@@ -101,7 +106,7 @@ export function DeviceTile({ device, selected, focused, targets, onToggleSelect,
   const title = [device.brand, device.model].filter(Boolean).join(" ") || device.serial;
 
   return (
-    <div className={`tile${selected ? " selected" : ""}${focused ? " focused" : ""}`}>
+    <div className={`tile${selected ? " selected" : ""}${focused ? " focused" : ""}${recording ? " recording" : ""}`}>
       <header className="tile-header">
         <label className="tile-check" title="Выбрать устройство">
           <input type="checkbox" checked={selected} onChange={onToggleSelect} />
@@ -113,6 +118,16 @@ export function DeviceTile({ device, selected, focused, targets, onToggleSelect,
             {device.battery !== undefined && ` · ${device.battery}%`}
           </span>
         </div>
+        {recording && (
+          <span className="badge badge-rec" title="Идёт запись действий">
+            ● rec
+          </span>
+        )}
+        {run && (
+          <span className="badge badge-run" title={`${run.scenarioName}: шаг ${run.stepIndex + 1}/${run.stepCount}, повтор ${run.iteration}`}>
+            ▶ {run.stepIndex + 1}/{run.stepCount}
+          </span>
+        )}
         {device.proxy ? (
           <span className="badge badge-proxy" title={`Прокси: ${device.proxy}`}>
             proxy

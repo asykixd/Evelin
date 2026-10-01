@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { DeviceInfo, DeviceResult } from "@shared/types";
+import type { DeviceInfo, DeviceResult, RecordingStatus, RunStatus, Scenario } from "@shared/types";
 import { DeviceTile } from "./components/DeviceTile";
 import { ActionsPanel } from "./components/ActionsPanel";
 import { ProxyPanel } from "./components/ProxyPanel";
 import { LogPanel, type LogEntry } from "./components/LogPanel";
+import { ScenarioEditor } from "./components/ScenarioEditor";
+import { ScenariosPanel } from "./components/ScenariosPanel";
 
-type Tab = "actions" | "proxy";
+type Tab = "actions" | "scenarios" | "proxy";
 
 export function App() {
   const [devices, setDevices] = useState<DeviceInfo[]>([]);
@@ -15,10 +17,17 @@ export function App() {
   const [tileWidth, setTileWidth] = useState(240);
   const [tab, setTab] = useState<Tab>("actions");
   const [log, setLog] = useState<LogEntry[]>([]);
+  const [scenarios, setScenarios] = useState<Scenario[]>([]);
+  const [runs, setRuns] = useState<RunStatus[]>([]);
+  const [recording, setRecording] = useState<RecordingStatus | null>(null);
+  const [editing, setEditing] = useState<Scenario | undefined>();
 
   useEffect(() => {
     void window.farm.devices.list().then(setDevices);
-    return window.farm.devices.onChange(setDevices);
+    void window.farm.scenarios.list().then(setScenarios);
+    void window.farm.scenarios.runs().then(setRuns);
+    const offs = [window.farm.devices.onChange(setDevices), window.farm.scenarios.onRuns(setRuns), window.farm.recorder.onStatus(setRecording)];
+    return () => offs.forEach((off) => off());
   }, []);
 
   // Убираем из выделения отключившиеся устройства.
@@ -92,7 +101,7 @@ export function App() {
   return (
     <div className="app">
       <header className="topbar">
-        <div className="brand">Android Farm</div>
+        <div className="brand">Evelin</div>
         <div className="topbar-stats">
           <span>
             Устройств: <b>{online.length}</b>
@@ -133,6 +142,8 @@ export function App() {
                 device={d}
                 selected={selected.has(d.serial)}
                 focused={focused === d.serial}
+                recording={recording?.serial === d.serial}
+                run={runs.find((r) => r.serial === d.serial && r.state === "running")}
                 targets={() => targetsFor(d.serial)}
                 onToggleSelect={() => toggle(d.serial)}
                 onToggleFocus={() => setFocused((f) => (f === d.serial ? undefined : d.serial))}
@@ -147,6 +158,10 @@ export function App() {
           <button className={tab === "actions" ? "active" : ""} onClick={() => setTab("actions")}>
             Действия
           </button>
+          <button className={tab === "scenarios" ? "active" : ""} onClick={() => setTab("scenarios")}>
+            Сценарии
+            {runs.some((r) => r.state === "running") && <span className="tab-dot" />}
+          </button>
           <button className={tab === "proxy" ? "active" : ""} onClick={() => setTab("proxy")}>
             Прокси
           </button>
@@ -155,14 +170,25 @@ export function App() {
           {selected.size > 0 ? `Применяется к выбранным: ${selected.size}` : `Применяется ко всем: ${online.length}`}
         </div>
         <div className="sidebar-body">
-          {tab === "actions" ? (
-            <ActionsPanel targets={actionTargets} run={run} />
-          ) : (
-            <ProxyPanel targets={actionTargets} run={run} />
+          {tab === "actions" && <ActionsPanel targets={actionTargets} run={run} />}
+          {tab === "scenarios" && (
+            <ScenariosPanel
+              devices={devices}
+              targets={actionTargets}
+              preferredSerial={focused ?? [...selected][0]}
+              scenarios={scenarios}
+              setScenarios={setScenarios}
+              runs={runs}
+              recording={recording}
+              onEdit={setEditing}
+            />
           )}
+          {tab === "proxy" && <ProxyPanel targets={actionTargets} run={run} />}
         </div>
         <LogPanel entries={log} onClear={() => setLog([])} />
       </aside>
+
+      {editing && <ScenarioEditor key={editing.id} scenario={editing} scenarios={scenarios} onSaved={setScenarios} onClose={() => setEditing(undefined)} />}
     </div>
   );
 }

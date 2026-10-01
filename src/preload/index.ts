@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer, type IpcRendererEvent } from "electron";
-import type { DeviceInfo, FarmApi, VideoPacket } from "@shared/types";
+import type { DeviceInfo, FarmApi, RecordingStatus, RunStatus, VideoPacket } from "@shared/types";
 
 // Наружу отдаём только узкий типизированный API, без доступа к ipcRenderer.
 function subscribe<A extends unknown[]>(channel: string, listener: (...args: A) => void): () => void {
@@ -44,6 +44,23 @@ const api: FarmApi = {
     assign: (serials) => ipcRenderer.invoke("proxy:assign", serials),
     clear: (serials) => ipcRenderer.invoke("proxy:clear", serials),
     test: (serials) => ipcRenderer.invoke("proxy:test", serials),
+  },
+  scenarios: {
+    list: () => ipcRenderer.invoke("scenarios:list"),
+    save: (scenario) => ipcRenderer.invoke("scenarios:save", scenario),
+    remove: (id) => ipcRenderer.invoke("scenarios:remove", id),
+    exportFile: (id) => ipcRenderer.invoke("scenarios:export", id),
+    importFile: () => ipcRenderer.invoke("scenarios:import"),
+    run: (id, serials) => ipcRenderer.invoke("scenarios:run", id, serials),
+    stop: (serials) => ipcRenderer.invoke("scenarios:stop", serials),
+    runs: () => ipcRenderer.invoke("scenarios:runs"),
+    onRuns: (listener) => subscribe<[RunStatus[]]>("scenarios:runs", listener),
+  },
+  recorder: {
+    start: (serial) => ipcRenderer.invoke("recorder:start", serial),
+    stop: () => ipcRenderer.invoke("recorder:stop"),
+    cancel: () => ipcRenderer.invoke("recorder:cancel"),
+    onStatus: (listener) => subscribe<[RecordingStatus | null]>("recorder:status", listener),
   },
 };
 

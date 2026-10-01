@@ -66,6 +66,13 @@ export class MirrorManager {
     return this.#sessions.has(serial);
   }
 
+  /** Гарантирует, что сессия scrcpy запущена (нужна для управления), не перезапуская уже работающую. */
+  async ensure(serial: string): Promise<void> {
+    const pending = this.#sessions.get(serial);
+    if (pending && (await pending.then(() => true, () => false))) return;
+    await this.start(serial);
+  }
+
   async start(serial: string): Promise<{ width: number; height: number }> {
     // Повторный start (например, после пересоздания плитки) перезапускает поток, чтобы декодер получил конфигурацию заново.
     if (this.#sessions.has(serial)) await this.stop(serial);
