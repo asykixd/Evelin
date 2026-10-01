@@ -10,7 +10,10 @@ import type { DeviceInfo, DeviceResult, DeviceState } from "@shared/types";
 const execFileAsync = promisify(execFile);
 
 // В собранном macOS-приложении PATH урезан, поэтому проверяем и типичные пути.
-const ADB_CANDIDATES = ["adb", "/opt/homebrew/bin/adb", "/usr/local/bin/adb", `${process.env.HOME}/Library/Android/sdk/platform-tools/adb`];
+const ADB_CANDIDATES =
+  process.platform === "win32"
+    ? ["adb", `${process.env.LOCALAPPDATA}\\Android\\Sdk\\platform-tools\\adb.exe`]
+    : ["adb", "/opt/homebrew/bin/adb", "/usr/local/bin/adb", `${process.env.HOME}/Library/Android/sdk/platform-tools/adb`];
 
 /** Аргументы для shell собираются через пробел без экранирования, поэтому всё пользовательское экранируем сами. */
 export function shellCommand(...args: string[]): string {
@@ -61,7 +64,7 @@ export class DeviceManager {
       // Сервер не запущен — пробуем поднять его сами.
     }
     for (const bin of ADB_CANDIDATES) {
-      if (bin.includes("/") && !existsSync(bin)) continue;
+      if (bin !== "adb" && !existsSync(bin)) continue;
       try {
         await execFileAsync(bin, ["start-server"]);
         await this.client.getVersion();

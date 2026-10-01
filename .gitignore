@@ -20,3 +20,6 @@ resources/scrcpy-server.version
 
 # /device-check screenshots
 .claude/skills/device-check/out/
+
+# electron-builder
+release/

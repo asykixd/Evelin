@@ -1,0 +1,52 @@
+appId: dev.asyki.evelin
+productName: Evelin
+copyright: Copyright © 2026 asyki
+
+directories:
+  output: release/${version}
+  buildResources: build
+
+files:
+  - out/**/*
+  - package.json
+
+extraResources:
+  - from: resources/scrcpy-server
+    to: resources/scrcpy-server
+
+asar: true
+electronLanguages: [en, ru]
+
+mac:
+  category: public.app-category.developer-tools
+  target:
+    - target: dmg
+      arch: [arm64, x64]
+    - target: zip
+      arch: [arm64, x64]
+  artifactName: ${productName}-${version}-mac-${arch}.${ext}
+  # Ad-hoc подпись: без сертификата Developer ID сборка не нотаризуется,
+  # поэтому при первом запуске macOS попросит подтверждение (см. README).
+  # Для подписи сертификатом уберите identity и задайте CSC_LINK / CSC_KEY_PASSWORD.
+  identity: "-"
+  hardenedRuntime: false
+
+dmg:
+  artifactName: ${productName}-${version}-mac-${arch}.${ext}
+
+win:
+  target:
+    - target: nsis
+      arch: [x64]
+    - target: zip
+      arch: [x64]
+  artifactName: ${productName}-${version}-win-${arch}.${ext}
+
+nsis:
+  artifactName: ${productName}-${version}-win-${arch}-setup.${ext}
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+
+publish: null

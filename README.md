@@ -1,72 +1,153 @@
+<div align="center">
+
+<img src="build/icon.png" width="128" height="128" alt="Evelin icon">
+
 # Evelin
 
-Десктопное приложение (Electron + React + TypeScript) для управления фермой Android-устройств, подключённых по USB.
+**Control a whole farm of USB-connected Android phones from one desktop window.**
 
-- **Живые экраны** всех устройств в сетке (scrcpy 3.3.3 → H.264 → аппаратное декодирование WebCodecs).
-- **Управление мышью**: клик/свайп, колесо — прокрутка, правая кнопка — «Назад».
-- **Синхронное управление**: касания и кнопки на одном из выбранных устройств повторяются на всех выбранных.
-- **Запись действий**: всё, что вы делаете на телефоне (пальцем по самому телефону или мышью по его плитке), сохраняется как сценарий — касания, свайпы, кнопки, текст, запуск приложений и паузы между ними.
-- **Сценарии (пресеты)**: редактор шагов, повторы (в том числе бесконечные), пауза между повторами, запуск на любом наборе устройств параллельно, импорт/экспорт в файл.
-- **Пакетные действия**: кнопки, ввод текста, запуск приложения, установка APK, скриншоты, перезагрузка, произвольный `adb shell`.
-- **Прокси**: импорт файла (`type://host:port[:login[:password]]`), CyberYozh API, раздача по кругу через системный HTTP-прокси Android, проверка IP.
+Live screens, mouse control with broadcast to every selected device, action recording, reusable scenarios, batch commands and proxy rotation.
 
-## Запуск
+[![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+![Platforms](https://img.shields.io/badge/platform-macOS%20%7C%20Windows-lightgrey)
+![Electron](https://img.shields.io/badge/Electron-44-47848F?logo=electron&logoColor=white)
+![TypeScript](https://img.shields.io/badge/TypeScript-5.9-3178C6?logo=typescript&logoColor=white)
 
-Нужны Node.js 20+ и `adb` (platform-tools) в PATH.
+[Download](https://github.com/asykixd/androidkit/releases/latest) · [Features](#features) · [Getting started](#getting-started) · [Scenarios](#scenarios) · [Building](#building-from-source)
+
+</div>
+
+> The interface is currently in Russian.
+
+---
+
+## Features
+
+| | |
+|---|---|
+| 📺 **Live screens** | Every connected device in a grid, streamed via scrcpy 3.3.3 (H.264) and hardware-decoded with WebCodecs. |
+| 🖱️ **Mouse control** | Click and drag to tap and swipe. The wheel scrolls and right-click sends **Back**. |
+| 📡 **Broadcast input** | Taps and key presses on one selected device are repeated on all selected devices. |
+| ⏺️ **Action recording** | Record what you do, either with a finger on the phone itself or with the mouse on its tile. Taps, swipes, keys, text, app launches and the pauses between them are saved as a scenario. |
+| 🧩 **Scenarios** | Step editor with repeats (including infinite), a delay between runs, parallel runs on any set of devices, and import/export to JSON. |
+| ⚡ **Batch actions** | Buttons, text input, app launch, APK install, screenshots, reboot and raw `adb shell` on many devices at once. |
+| 🌐 **Proxies** | Import from a file (`type://host:port[:login[:password]]`) or from the CyberYozh API. Proxies are handed out round-robin through Android's system HTTP proxy, and you can check each device's IP. |
+
+## Getting started
+
+### Requirements
+
+- **ADB** ([Android platform-tools](https://developer.android.com/tools/releases/platform-tools)). Evelin starts the ADB server on its own and looks for `adb` in:
+  - `PATH`
+  - on macOS: Homebrew (`/opt/homebrew/bin`, `/usr/local/bin`) and `~/Library/Android/sdk/platform-tools`
+  - on Windows: `%LOCALAPPDATA%\Android\Sdk\platform-tools`
+- Android 5.0+ devices with **USB debugging** enabled. Accept the RSA prompt on each phone the first time it connects.
+
+### Install
+
+Download the latest build from [**Releases**](https://github.com/asykixd/androidkit/releases/latest):
+
+| Platform | File |
+|---|---|
+| macOS, Apple Silicon | `Evelin-x.y.z-mac-arm64.dmg` |
+| macOS, Intel | `Evelin-x.y.z-mac-x64.dmg` |
+| Windows, installer | `Evelin-x.y.z-win-x64-setup.exe` |
+| Windows, portable | `Evelin-x.y.z-win-x64.zip` |
+
+> [!NOTE]
+> Release builds are not signed with a paid certificate yet, so the OS will ask you to confirm the first launch.
+> - **macOS:** if you see *"Evelin can't be opened"*, open **System Settings → Privacy & Security** and click **Open Anyway**. You can also run `xattr -cr /Applications/Evelin.app`.
+> - **Windows:** in the SmartScreen dialog, click **More info → Run anyway**.
+
+## Scenarios
+
+A scenario is a list of steps that runs on one device or many in parallel.
+
+| Step | What it does |
+|---|---|
+| Tap / Swipe / Gesture | Touch at a point. Coordinates are a percentage of the screen, so one scenario works across resolutions. *Gesture* replays a recorded finger path. |
+| Key | Back, Home, Recents, Power, volume |
+| Type text | Types text into the focused field |
+| Pause | Fixed, or random within a min–max range |
+| Launch / Stop app, Clear data | `monkey`, `am force-stop`, `pm clear` |
+| Next proxy / Reset proxy | Takes the next proxy from the shared pool (each device gets its own) |
+| ADB shell | Any command on the device |
+| Run scenario | Nested scenarios, up to 5 levels deep |
+
+**Every N-th run.** Any step can be set to run only on runs 1, N+1, 2N+1, and so on. For example, to change the proxy every 3 loops, make *Next proxy* the first step with N = 3 and repeat the scenario forever.
+
+**Recording.** Open **Scenarios**, pick a device and press **● Record**. Touches on the phone itself are read through `getevent`, single finger only (multitouch isn't recorded). Actions you do in Evelin are captured directly. When you stop, the recording opens in the editor.
+
+> [!WARNING]
+> Imported scenarios can contain `ADB shell` steps. Evelin flags them on import. Review them before you run the scenario.
+
+## Security
+
+- The renderer runs with `contextIsolation` and `sandbox` on and `nodeIntegration` off. It can only reach a narrow, typed `window.farm` API.
+- The main process validates every IPC argument: the sender, device serials, package names, and proxy hosts and ports. Scenarios from both the UI and imported files go through strict schema validation.
+- Arguments built into device shell commands are escaped. Raw input runs only from the console and from `ADB shell` steps.
+- The CyberYozh token and proxy credentials are encrypted at rest with Electron `safeStorage` (Keychain, DPAPI or libsecret).
+- The CSP is strict. Navigation and new windows are blocked, and permission requests are denied.
+
+## Building from source
+
+You need Node.js 20+ and `adb` on `PATH`.
 
 ```bash
-npm install      # postinstall скачает Electron и scrcpy-server
-npm run dev      # режим разработки с hot reload
-npm run build && npm start   # собранная версия
+git clone https://github.com/asykixd/androidkit.git
+cd androidkit
+npm install          # postinstall downloads Electron and scrcpy-server
+npm run dev          # dev mode with HMR
 ```
 
-Если `npm install` заблокировал install-скрипты (npm 11+), выполните `npm approve-scripts esbuild` и затем `npm run postinstall`.
-
-## Сценарии
-
-Шаги:
-
-| Шаг | Что делает |
+| Script | Description |
 |---|---|
-| Нажатие / Свайп / Жест | касание в точке (координаты в % экрана, поэтому сценарий работает на телефонах с разным разрешением); «Жест» — записанная траектория пальца |
-| Кнопка | Назад, Домой, Недавние, Питание, громкость |
-| Ввод текста | текст в активное поле |
-| Пауза | фиксированная или случайная в диапазоне «от–до» |
-| Запустить / Закрыть приложение, Очистить данные | `monkey`, `am force-stop`, `pm clear` |
-| Сменить прокси / Сбросить прокси | следующий прокси из общего круга (у каждого устройства свой) |
-| ADB shell | произвольная команда на телефоне |
-| Выполнить другой сценарий | вложенные сценарии (до 5 уровней) |
+| `npm run dev` | Run in development with hot reload |
+| `npm run typecheck` | TypeScript check for main and renderer |
+| `npm run build && npm start` | Production build, run locally |
+| `npm run dist:mac` | `.dmg` and `.zip` for arm64 and x64 into `release/<version>/` |
+| `npm run dist:win` | NSIS installer and portable `.zip` for x64 |
 
-У каждого шага есть **«каждый N-й»** — шаг выполняется на 1-м, (N+1)-м, (2N+1)-м… повторе. Так задаётся, например, «менять прокси каждые 3 круга»: первый шаг «Сменить прокси» с N = 3 и бесконечный повтор сценария.
+If npm 11+ blocked install scripts, run `npm approve-scripts esbuild`, then `npm run postinstall`.
 
-Запись: вкладка «Сценарии» → выбрать устройство → «● Запись». Касания по самому телефону читаются через `getevent` (только один палец; мультитач не записывается), действия из Evelin — напрямую. После остановки запись открывается в редакторе.
+**Releases.** Push a `v*` tag. [GitHub Actions](.github/workflows/release.yml) builds on macOS and Windows runners and attaches the installers to a draft release.
 
-При импорте чужих сценариев Evelin предупреждает, если в них есть `ADB shell`-шаги, — проверьте их перед запуском.
+```bash
+npm version patch && git push --follow-tags
+```
 
-## Архитектура
+**Code signing.** macOS builds get an ad-hoc signature by default. To sign with a Developer ID, remove `identity: "-"` from `electron-builder.yml` and set `CSC_LINK` / `CSC_KEY_PASSWORD`, plus `APPLE_ID`, `APPLE_APP_SPECIFIC_PASSWORD` and `APPLE_TEAM_ID` for notarization.
 
-| Слой | Файл | Что делает |
-|---|---|---|
-| main | `src/main/devices.ts` | `DeviceManager`: подключение к ADB-серверу (Tango), отслеживание устройств, shell, прокси |
-| main | `src/main/mirror.ts` | `MirrorManager`: scrcpy на устройстве, видеопакеты в UI, ввод (touch/scroll/keys/text) |
-| main | `src/main/recording.ts` | чистая логика записи: разбор `getevent`, превращение событий в шаги |
-| main | `src/main/recorder.ts` | `Recorder`: запись с устройства и из интерфейса |
-| main | `src/main/runner.ts` | `ScenarioRunner`: выполнение сценариев, остановка через `AbortSignal` |
-| main | `src/main/scenarios.ts` | `ScenarioStore`: `userData/scenarios.json` |
-| main | `src/main/proxies.ts` | `ProxyStore`: прокси из файла и CyberYozh |
-| main | `src/main/index.ts` | окно, CSP, IPC-обработчики с валидацией |
-| shared | `src/shared/scenario.ts` | строгая валидация сценариев, подписи и шаблоны шагов |
-| preload | `src/preload/index.ts` | узкий типизированный API `window.farm` (контракт — `FarmApi` в `src/shared/types.ts`) |
-| renderer | `src/renderer/src/` | React UI; `DeviceTile` декодирует видео через `WebCodecsVideoDecoder` |
+## Architecture
 
-## Безопасность
+```
+src/
+├── main/       Electron main process. Owns all ADB access.
+├── preload/    Typed window.farm bridge (contract: FarmApi in shared/types.ts)
+├── renderer/   React UI
+└── shared/     Types, scenario schema and validation
+```
 
-- `contextIsolation`, `sandbox`, без `nodeIntegration`; renderer видит только `window.farm`.
-- Все IPC-аргументы проверяются в main: отправитель, serial из списка подключённых, имена пакетов, хосты и порты прокси. Сценарии (из UI и из файлов) проходят строгую валидацию схемы.
-- Аргументы, собираемые в shell-команды на устройстве, экранируются (`shellCommand`); сырой ввод выполняется только в консоли и шагах «ADB shell».
-- Токен CyberYozh и прокси с паролями хранятся в `userData/proxy-settings.json`, зашифрованные через `safeStorage` (Keychain / DPAPI / libsecret).
-- Строгая CSP, навигация и новые окна запрещены, запросы разрешений отклоняются.
+| File | Responsibility |
+|---|---|
+| `main/devices.ts` | `DeviceManager`: connection to the ADB server ([Tango](https://github.com/yume-chan/ya-webadb)), device tracking, shell, proxy settings |
+| `main/mirror.ts` | `MirrorManager`: scrcpy session per device, video packets to the UI, touch/scroll/key/text input |
+| `main/recording.ts` | Pure recording logic: `getevent` parsing and conversion of events to steps |
+| `main/recorder.ts` | `Recorder`: records from the device and from the UI |
+| `main/runner.ts` | `ScenarioRunner`: runs scenarios, cancellation via `AbortSignal` |
+| `main/scenarios.ts` | `ScenarioStore`: persists to `userData/scenarios.json` |
+| `main/proxies.ts` | `ProxyStore`: proxies from a file or CyberYozh |
+| `main/index.ts` | Window, CSP, validated IPC handlers |
+| `renderer/src/` | UI. `DeviceTile` decodes video with `WebCodecsVideoDecoder` |
 
-## Обновление scrcpy
+**Updating scrcpy.** The version lives in `src/shared/scrcpy-version.json` and must match the `AdbScrcpyOptionsX_Y_Z` class used in `src/main/mirror.ts`.
 
-Версия задаётся в `src/shared/scrcpy-version.json` и должна совпадать с классом опций `AdbScrcpyOptionsX_Y_Z` в `src/main/mirror.ts`.
+## Acknowledgements
+
+- [scrcpy](https://github.com/Genymobile/scrcpy) by Genymobile, the screen-mirroring server
+- [Tango / ya-webadb](https://github.com/yume-chan/ya-webadb) by yume-chan, ADB and scrcpy client for JavaScript
+- [Electron](https://www.electronjs.org/), [electron-vite](https://electron-vite.org/), [electron-builder](https://www.electron.build/)
+
+## License
+
+[MIT](LICENSE) © 2026 asyki

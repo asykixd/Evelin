@@ -1,9 +1,16 @@
 {
   "name": "evelin",
   "productName": "Evelin",
-  "version": "0.2.0",
+  "version": "1.0.0",
   "private": true,
-  "description": "Evelin — панель управления фермой Android-устройств",
+  "description": "Evelin — control panel for a farm of USB-connected Android devices",
+  "author": "asyki <asyki@list.ru>",
+  "license": "MIT",
+  "homepage": "https://github.com/asykixd/androidkit",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/asykixd/androidkit.git"
+  },
   "main": "out/main/index.js",
   "type": "module",
   "scripts": {
@@ -11,7 +18,10 @@
     "dev": "electron-vite dev",
     "build": "electron-vite build",
     "start": "electron-vite preview",
-    "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json"
+    "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json",
+    "dist": "npm run typecheck && electron-vite build && electron-builder",
+    "dist:mac": "npm run typecheck && electron-vite build && electron-builder --mac",
+    "dist:win": "npm run typecheck && electron-vite build && electron-builder --win"
   },
   "dependencies": {
     "@yume-chan/adb": "^2.6.4",
@@ -28,6 +38,7 @@
     "@vitejs/plugin-react": "^5.2.0",
     "@yume-chan/fetch-scrcpy-server": "^1.0.0",
     "electron": "^44.5.1",
+    "electron-builder": "^26.15.3",
     "electron-vite": "^5.0.0",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",

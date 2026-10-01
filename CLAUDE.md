@@ -15,7 +15,10 @@ npm install          # postinstall downloads Electron + scrcpy-server into resou
 npm run dev          # electron-vite dev with HMR
 npm run typecheck    # the only static check (no tests/linter)
 npm run build && npm start
+npm run dist:mac     # electron-builder → release/<version>/ (dist:win needs Windows/Rosetta for NSIS)
 ```
+
+Packaging config is `electron-builder.yml`; `resources/scrcpy-server` ships via `extraResources`. Tagging `v*` triggers `.github/workflows/release.yml` (draft GitHub release).
 
 Requires `adb` on PATH. Renderer warnings/errors are forwarded to the terminal in dev.
 
