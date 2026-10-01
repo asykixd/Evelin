@@ -13,7 +13,7 @@ Live screens, mouse control with broadcast to every selected device, action reco
 ![Electron](https://img.shields.io/badge/Electron-44-47848F?logo=electron&logoColor=white)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5.9-3178C6?logo=typescript&logoColor=white)
 
-[Download](https://github.com/asykixd/androidkit/releases/latest) · [Features](#features) · [Getting started](#getting-started) · [Scenarios](#scenarios) · [Building](#building-from-source)
+[Download](https://github.com/asykixd/Evelin/releases/latest) · [Features](#features) · [Getting started](#getting-started) · [Scenarios](#scenarios) · [Building](#building-from-source)
 
 </div>
 
@@ -45,7 +45,7 @@ Live screens, mouse control with broadcast to every selected device, action reco
 
 ### Install
 
-Download the latest build from [**Releases**](https://github.com/asykixd/androidkit/releases/latest):
+Download the latest build from [**Releases**](https://github.com/asykixd/Evelin/releases/latest):
 
 | Platform | File |
 |---|---|
@@ -94,8 +94,8 @@ A scenario is a list of steps that runs on one device or many in parallel.
 You need Node.js 20+ and `adb` on `PATH`.
 
 ```bash
-git clone https://github.com/asykixd/androidkit.git
-cd androidkit
+git clone https://github.com/asykixd/Evelin.git
+cd Evelin
 npm install          # postinstall downloads Electron and scrcpy-server
 npm run dev          # dev mode with HMR
 ```

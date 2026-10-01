@@ -6,10 +6,10 @@
   "description": "Evelin — control panel for a farm of USB-connected Android devices",
   "author": "asyki <asyki@list.ru>",
   "license": "MIT",
-  "homepage": "https://github.com/asykixd/androidkit",
+  "homepage": "https://github.com/asykixd/Evelin",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/asykixd/androidkit.git"
+    "url": "git+https://github.com/asykixd/Evelin.git"
   },
   "main": "out/main/index.js",
   "type": "module",
