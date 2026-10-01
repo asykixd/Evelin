@@ -1,0 +1,7 @@
+node_modules/
+out/
+dist/
+# Скачивается в postinstall (scripts/fetch-server.mjs)
+resources/scrcpy-server
+resources/scrcpy-server.version
+*.tsbuildinfo

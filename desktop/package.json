@@ -1,0 +1,40 @@
+{
+  "name": "android-farm",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Панель управления фермой Android-устройств",
+  "main": "out/main/index.js",
+  "type": "module",
+  "scripts": {
+    "postinstall": "node node_modules/electron/install.js && node scripts/fetch-server.mjs",
+    "dev": "electron-vite dev",
+    "build": "electron-vite build",
+    "start": "electron-vite preview",
+    "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json"
+  },
+  "dependencies": {
+    "@yume-chan/adb": "^2.6.4",
+    "@yume-chan/adb-scrcpy": "^2.3.2",
+    "@yume-chan/adb-server-node-tcp": "^2.5.2",
+    "@yume-chan/scrcpy": "^2.3.0",
+    "@yume-chan/scrcpy-decoder-webcodecs": "^2.5.3",
+    "@yume-chan/stream-extra": "^2.6.1"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.3",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^5.2.0",
+    "@yume-chan/fetch-scrcpy-server": "^1.0.0",
+    "electron": "^44.5.1",
+    "electron-vite": "^5.0.0",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0",
+    "typescript": "^5.9.3",
+    "vite": "^7.3.6"
+  },
+  "allowScripts": {
+    "esbuild@0.25.12": true,
+    "esbuild@0.28.2": true
+  }
+}
