@@ -1,25 +1,35 @@
 <div align="center">
 
-<img src="build/icon.png" width="128" height="128" alt="Evelin icon">
+<img src="build/icon.png" width="128" height="128" alt="Evelin, an Android device farm manager">
 
-# Evelin
+# Evelin: Android device farm manager
 
-**Control a whole farm of USB-connected Android phones from one desktop window.**
+**Mirror, control and automate dozens of USB-connected Android phones from one desktop window.**
 
-Live screens, mouse control with broadcast to every selected device, action recording, reusable scenarios, batch commands and proxy rotation.
+Live screens, mouse control broadcast to every selected device, action recording, reusable automation scenarios, batch ADB commands and proxy rotation. Built on ADB and scrcpy. No root required.
 
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 ![Platforms](https://img.shields.io/badge/platform-macOS%20%7C%20Windows-lightgrey)
 ![Electron](https://img.shields.io/badge/Electron-44-47848F?logo=electron&logoColor=white)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5.9-3178C6?logo=typescript&logoColor=white)
 
-[Download](https://github.com/asykixd/Evelin/releases/latest) · [Features](#features) · [Getting started](#getting-started) · [Scenarios](#scenarios) · [Building](#building-from-source)
+[Download](https://github.com/asykixd/Evelin/releases/latest) · [Features](#features) · [Getting started](#getting-started) · [Scenarios](#scenarios) · [FAQ](#faq) · [Building](#building-from-source)
 
 </div>
 
-> The interface is available in English and Russian. Switch it in **Settings** (⚙ in the top bar).
-
 ---
+
+## What is Evelin?
+
+Evelin is a free, open-source **phone farm** control panel for macOS and Windows. Plug in a USB hub full of Android devices and you get every screen in one grid. You can tap and swipe on any of them with the mouse, repeat the same input on all selected phones at once, and run recorded scenarios on the whole farm in parallel.
+
+Think of it as a **multi-device scrcpy GUI** with automation built in. It is useful for:
+
+- **Manual and regression QA** on many Android models and screen sizes at the same time
+- **Device labs** where one person looks after a rack of test phones
+- **Repetitive phone tasks**: record them once, then replay them on every device with randomised pauses
+- **Bulk device administration**: install an APK, launch or clear an app, take screenshots, reboot or run `adb shell` on many phones in one click
+- **Per-device proxies**: give each phone its own HTTP proxy and check the IP it gets
 
 ## Features
 
@@ -82,6 +92,26 @@ A scenario is a list of steps that runs on one device or many in parallel.
 > [!WARNING]
 > Imported scenarios can contain `ADB shell` steps. Evelin flags them on import. Review them before you run the scenario.
 
+## FAQ
+
+**How do I control several Android phones from my computer at once?**
+Connect them over USB, enable USB debugging, and open Evelin. Every authorised device appears in the grid. Select the devices you want and turn on **Broadcast input**: a tap or key press on one of them is repeated on all of them.
+
+**Do the phones need to be rooted?**
+No. Evelin uses standard ADB and the scrcpy server, which run with normal USB-debugging permissions.
+
+**How is Evelin different from scrcpy?**
+scrcpy mirrors one device per window. Evelin runs scrcpy for every connected device in a single window and adds broadcast input, action recording, scenarios, batch commands and proxy management.
+
+**Can I automate taps and swipes without writing code?**
+Yes. Press **● Record**, do the task on the phone or on its tile, and stop. The recording becomes a scenario you can edit, loop and run on any set of devices. Coordinates are stored as a percentage of the screen, so one scenario works across resolutions.
+
+**How many devices can it handle?**
+That depends on your USB hubs and CPU. Lower the stream resolution, bitrate or FPS in **Settings** to fit more devices on one machine.
+
+**Is it free?**
+Yes. Evelin is open source under the MIT license.
+
 ## Security
 
 - The renderer runs with `contextIsolation` and `sandbox` on and `nodeIntegration` off. It can only reach a narrow, typed `window.farm` API.
@@ -126,7 +156,7 @@ src/
 ├── main/       Electron main process. Owns all ADB access.
 ├── preload/    Typed window.farm bridge (contract: FarmApi in shared/types.ts)
 ├── renderer/   React UI
-└── shared/     Types, scenario and settings validation, translations
+└── shared/     Types, scenario and settings validation
 ```
 
 | File | Responsibility |
@@ -139,7 +169,6 @@ src/
 | `main/scenarios.ts` | `ScenarioStore`: persists to `userData/scenarios.json` |
 | `main/proxies.ts` | `ProxyStore`: proxies from a file or CyberYozh |
 | `main/settings.ts` | `SettingsStore`: persists to `userData/settings.json` |
-| `shared/i18n.ts` | Russian and English strings, `t()` for main and renderer |
 | `main/index.ts` | Window, CSP, validated IPC handlers |
 | `renderer/src/` | UI. `DeviceTile` decodes video with `WebCodecsVideoDecoder` |
 
