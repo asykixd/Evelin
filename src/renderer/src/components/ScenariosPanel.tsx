@@ -7,7 +7,6 @@ import { useSettings, useT } from "../settings";
 interface Props {
   devices: DeviceInfo[];
   targets: string[];
-  /** Устройство для записи по умолчанию: увеличенное или первое выбранное. */
   preferredSerial?: string;
   scenarios: Scenario[];
   setScenarios: (s: Scenario[]) => void;
@@ -30,7 +29,6 @@ export function ScenariosPanel({ devices, targets, preferredSerial, scenarios, s
     return d?.model ? `${d.model}` : serial;
   };
 
-  // Если устройство для записи не выбрано или отключилось — берём предпочтительное.
   useEffect(() => {
     if (!recSerial || !online.some((d) => d.serial === recSerial)) setRecSerial(preferredSerial ?? online[0]?.serial ?? "");
   }, [preferredSerial, online, recSerial]);

@@ -1,5 +1,3 @@
-// Работа с устройствами через локальный ADB-сервер (аналог AndroidDeviceController из device_controller.py).
-
 import { execFile } from "node:child_process";
 import { existsSync } from "node:fs";
 import { promisify } from "node:util";
@@ -10,13 +8,13 @@ import type { DeviceInfo, DeviceResult, DeviceState } from "@shared/types";
 
 const execFileAsync = promisify(execFile);
 
-// В собранном macOS-приложении PATH урезан, поэтому проверяем и типичные пути.
+// Packaged macOS apps get a minimal PATH, so probe common install locations too.
 const ADB_CANDIDATES =
   process.platform === "win32"
     ? ["adb", `${process.env.LOCALAPPDATA}\\Android\\Sdk\\platform-tools\\adb.exe`]
     : ["adb", "/opt/homebrew/bin/adb", "/usr/local/bin/adb", `${process.env.HOME}/Library/Android/sdk/platform-tools/adb`];
 
-/** Аргументы для shell собираются через пробел без экранирования, поэтому всё пользовательское экранируем сами. */
+/** Tango joins shell args with spaces without escaping, so escape everything here. */
 export function shellCommand(...args: string[]): string {
   return args.map(escapeArg).join(" ");
 }
@@ -28,7 +26,7 @@ export class DeviceManager {
   #observer: AdbServerClient.DeviceObserver | undefined;
   #listeners = new Set<(devices: DeviceInfo[]) => void>();
 
-  /** `adbPath` — путь к adb из настроек; пустая строка — искать автоматически. */
+  /** An empty `adbPath` means auto-detect. */
   constructor(private readonly adbPath: () => string = () => "") {}
 
   async start(): Promise<void> {
@@ -65,7 +63,7 @@ export class DeviceManager {
       await this.client.getVersion();
       return;
     } catch {
-      // Сервер не запущен — пробуем поднять его сами.
+      // not running yet — start it below
     }
     const custom = this.adbPath();
     for (const bin of custom ? [custom, ...ADB_CANDIDATES] : ADB_CANDIDATES) {
@@ -75,7 +73,7 @@ export class DeviceManager {
         await this.client.getVersion();
         return;
       } catch {
-        // пробуем следующий путь
+        // try the next candidate
       }
     }
     throw new Error(t("err.adbStart"));
@@ -124,7 +122,7 @@ export class DeviceManager {
     return adb;
   }
 
-  /** Выполняет shell-команду. Строка передаётся как есть (пайпы и т.п. работают), поэтому данные снаружи экранируйте через `shellCommand`. */
+  /** Runs the command string as-is (pipes work); escape external input with `shellCommand`. */
   async shell(serial: string, command: string): Promise<string> {
     const adb = await this.getAdb(serial);
     return adb.subprocess.noneProtocol.spawnWaitText(command);
@@ -146,7 +144,7 @@ export class DeviceManager {
         this.getProxy(serial),
       ]);
       const info: DeviceInfo = { ...current, model: model || current.model, brand, androidVersion, battery, proxy };
-      // Устройство могло отключиться, пока мы ждали ответа.
+      // The device may have disconnected while we were waiting.
       if (this.#devices.has(serial)) {
         this.#devices.set(serial, info);
         this.#emit();
@@ -158,11 +156,9 @@ export class DeviceManager {
     }
   }
 
-  // --- Прокси (settings put global http_proxy), как set_http_proxy / clear_http_proxy в Python-версии ---
-
   async getProxy(serial: string): Promise<string> {
     const out = (await this.shell(serial, "settings get global http_proxy")).trim();
-    // Android возвращает "null", если ключ не задан, и ":0" после очистки.
+    // Android returns "null" when unset and ":0" after clearing.
     return out === "null" || out === ":0" ? "" : out;
   }
 
@@ -172,13 +168,12 @@ export class DeviceManager {
   }
 
   async clearProxy(serial: string): Promise<boolean> {
-    // ":0" сбрасывает прокси сразу, без перезагрузки; delete убирает ключ полностью.
+    // ":0" takes effect without a reboot; delete then removes the key entirely.
     await this.shell(serial, "settings put global http_proxy :0");
     await this.shell(serial, "settings delete global http_proxy");
     return (await this.getProxy(serial)) === "";
   }
 
-  /** Запускает действие на каждом устройстве параллельно и собирает результаты, не бросая исключений. */
   async forEach(serials: string[], action: (serial: string) => Promise<string | void>): Promise<DeviceResult[]> {
     return Promise.all(
       serials.map(async (serial): Promise<DeviceResult> => {

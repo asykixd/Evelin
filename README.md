@@ -70,6 +70,8 @@ Download the latest build from [**Releases**](https://github.com/asykixd/Evelin/
 > - **macOS:** if you see *"Evelin can't be opened"*, open **System Settings → Privacy & Security** and click **Open Anyway**. You can also run `xattr -cr /Applications/Evelin.app`.
 > - **Windows:** in the SmartScreen dialog, click **More info → Run anyway**.
 
+**Updates.** Evelin checks GitHub Releases on startup and every 6 hours (or when you click the version next to the logo). When a new version is out, it asks whether to install it, downloads it in the background and applies it on restart. The macOS app and the Windows installer update in place; the portable Windows `.zip` and copies run from a read-only location get a link to the release page instead.
+
 ## Scenarios
 
 A scenario is a list of steps that runs on one device or many in parallel.
@@ -141,7 +143,7 @@ npm run dev          # dev mode with HMR
 
 If npm 11+ blocked install scripts, run `npm approve-scripts esbuild`, then `npm run postinstall`.
 
-**Releases.** Push a `v*` tag. [GitHub Actions](.github/workflows/release.yml) builds on macOS and Windows runners and attaches the installers to a draft release.
+**Releases.** Push a `v*` tag. [GitHub Actions](.github/workflows/release.yml) builds on macOS and Windows runners and attaches the installers to a draft release. Publish the draft to roll it out: installed apps only see published releases.
 
 ```bash
 npm version patch && git push --follow-tags
@@ -169,6 +171,7 @@ src/
 | `main/scenarios.ts` | `ScenarioStore`: persists to `userData/scenarios.json` |
 | `main/proxies.ts` | `ProxyStore`: proxies from a file or CyberYozh |
 | `main/settings.ts` | `SettingsStore`: persists to `userData/settings.json` |
+| `main/updater.ts` | `Updater`: version check against GitHub Releases, download and in-place install |
 | `main/index.ts` | Window, CSP, validated IPC handlers |
 | `renderer/src/` | UI. `DeviceTile` decodes video with `WebCodecsVideoDecoder` |
 

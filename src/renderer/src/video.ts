@@ -1,4 +1,4 @@
-// Одна подписка на IPC на всё приложение; пакеты раздаются плиткам по serial.
+// One IPC subscription for the whole app; packets are routed to tiles by serial.
 import type { VideoPacket } from "@shared/types";
 
 type Route = {

@@ -1,5 +1,3 @@
-// Чистая логика записи (без ADB): разбор вывода getevent и превращение событий в шаги сценария.
-
 import type { GesturePoint, NavKey, Step, StepBody, TouchAction } from "../shared/types";
 
 export type RecordedEvent =
@@ -7,15 +5,13 @@ export type RecordedEvent =
   | { t: number; kind: "key"; key: NavKey }
   | { t: number; kind: "step"; step: StepBody };
 
-// --- getevent ---
-
 export interface TouchscreenInfo {
   path: string;
   maxX: number;
   maxY: number;
 }
 
-/** Ищет сенсорный экран в выводе `getevent -pl`: устройство с осями ABS_MT_POSITION_X/Y. */
+/** The touchscreen is the device in `getevent -pl` output that has ABS_MT_POSITION_X/Y axes. */
 export function findTouchscreen(output: string): TouchscreenInfo | undefined {
   let path: string | undefined;
   let maxX: number | undefined;
@@ -47,7 +43,7 @@ const PHYSICAL_KEYS: Record<string, NavKey> = {
   KEY_VOLUMEDOWN: "volume_down",
 };
 
-/** Поворот экрана (0..3) переводит координаты сенсора в координаты изображения. */
+/** Maps sensor coordinates to display coordinates for rotation 0..3. */
 export function rotate(x: number, y: number, rotation: number): { x: number; y: number } {
   switch (rotation & 3) {
     case 1:
@@ -63,10 +59,7 @@ export function rotate(x: number, y: number, rotation: number): { x: number; y: 
 
 type Emit = (e: { kind: "touch"; action: TouchAction; x: number; y: number } | { kind: "key"; key: NavKey }) => void;
 
-/**
- * Разбирает поток `getevent -l` построчно. Отслеживается только первый палец (слот 0):
- * для записи сценариев мультитач не нужен, а одиночный указатель надёжно воспроизводится через scrcpy.
- */
+/** Parses `getevent -l` output. Only slot 0 is tracked: scenarios replay a single pointer via scrcpy. */
 export class GeteventParser {
   #slot = 0;
   #x = 0;
@@ -117,7 +110,7 @@ export class GeteventParser {
         else this.#pendingDown = true;
       }
     } else if (type === "EV_KEY" && code === "BTN_TOUCH") {
-      // Протокол A и часть драйверов не шлют TRACKING_ID — опираемся и на BTN_TOUCH.
+      // Protocol A and some drivers never send TRACKING_ID.
       if (value === "DOWN") this.#pendingDown = true;
       else if (value === "UP") this.#pendingUp = true;
     } else if (type === "EV_SYN" && code === "SYN_REPORT") {
@@ -147,8 +140,6 @@ export class GeteventParser {
   }
 }
 
-// --- Преобразование в шаги ---
-
 const MIN_WAIT = 100;
 const TAP_MAX_MS = 250;
 const TAP_MAX_DIST = 0.02;
@@ -156,7 +147,7 @@ const MOVE_MIN_INTERVAL = 16;
 
 const roundWait = (ms: number) => Math.round(ms / 50) * 50;
 
-/** Превращает поток событий в шаги: касания → нажатия/жесты, промежутки → паузы. Начальное ожидание до первого действия отбрасывается. */
+/** Touches become taps/gestures and gaps become waits; idle time before the first action is dropped. */
 export function eventsToSteps(events: readonly RecordedEvent[]): Step[] {
   const steps: Step[] = [];
   let lastEnd: number | undefined;
@@ -194,7 +185,7 @@ export function eventsToSteps(events: readonly RecordedEvent[]): Step[] {
       } else if (stroke) {
         const t = Math.round(e.t - stroke.start);
         const prev = stroke.points[stroke.points.length - 1]!;
-        // Прореживаем движения: для воспроизведения хватает ~60 точек в секунду.
+        // ~60 points per second is enough for replay.
         if (e.action === "move" && t - prev.t < MOVE_MIN_INTERVAL) continue;
         stroke.points.push({ t, action: e.action, x: e.x, y: e.y });
         if (e.action === "up") finishStroke();

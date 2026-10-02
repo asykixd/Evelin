@@ -1,6 +1,3 @@
-// Запись действий на одном устройстве: ввод из Evelin (касания по плитке, кнопки, текст)
-// плюс касания по самому телефону через getevent.
-
 import { performance } from "node:perf_hooks";
 import type { NavKey, RecordingStatus, Scenario, StepBody, TouchEvent } from "@shared/types";
 import { locale, t } from "@shared/i18n";
@@ -40,7 +37,6 @@ export class Recorder {
     for (const l of this.#listeners) l(s);
   }
 
-  // Счётчик событий обновляется часто — шлём в UI не чаще раза в 200 мс.
   #notifySoon(): void {
     this.#notifyTimer ??= setTimeout(() => {
       this.#notifyTimer = undefined;
@@ -58,7 +54,7 @@ export class Recorder {
     } catch (e) {
       active.status.physicalError = e instanceof Error ? e.message : String(e);
     }
-    // Запись могли отменить, пока подключались к сенсору.
+    // Recording may have been cancelled while attaching to the touchscreen.
     if (this.#active !== active) {
       active.stopPhysical?.();
       throw new Error(t("err.recordingCancelled"));
@@ -78,7 +74,7 @@ export class Recorder {
 
     const parser = new GeteventParser(screen, rotation, (e) => this.#add(active, e));
     const adb = await this.devices.getAdb(serial);
-    // PTY, а не обычный exec: без терминала getevent буферизует вывод и тайминги касаний теряются.
+    // PTY rather than plain exec: without a terminal getevent buffers output and touch timing is lost.
     const proc = await adb.subprocess.noneProtocol.pty("getevent -l");
     const decoder = new TextDecoder();
     void (async () => {
@@ -90,7 +86,7 @@ export class Recorder {
           parser.push(decoder.decode(value, { stream: true }));
         }
       } catch {
-        // процесс завершён
+        // process exited
       }
     })();
     return () => void Promise.resolve(proc.kill()).catch(() => {});
@@ -102,8 +98,6 @@ export class Recorder {
     active.status.events = active.events.length;
     this.#notifySoon();
   }
-
-  // --- Ввод из интерфейса Evelin; вызывается из обработчиков IPC для всех целевых устройств ---
 
   captureTouch(serials: string[], e: TouchEvent): void {
     if (this.#active && serials.includes(this.#active.status.serial)) this.#add(this.#active, { kind: "touch", ...e });
@@ -117,8 +111,6 @@ export class Recorder {
     if (this.#active && serials.includes(this.#active.status.serial)) this.#add(this.#active, { kind: "step", step });
   }
 
-  // --- Завершение ---
-
   #finish(): Active | undefined {
     const active = this.#active;
     this.#active = undefined;
@@ -129,7 +121,6 @@ export class Recorder {
     return active;
   }
 
-  /** Возвращает сценарий из записанных шагов (ещё не сохранённый) или undefined, если ничего не записано. */
   stop(deviceName: string): Scenario | undefined {
     const active = this.#finish();
     if (!active) return undefined;

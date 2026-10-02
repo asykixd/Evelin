@@ -1,5 +1,3 @@
-// Трансляция экранов через scrcpy: сервер запускается на телефоне, H.264 уходит в renderer, где декодируется WebCodecs.
-
 import { readFile } from "node:fs/promises";
 import { AdbScrcpyClient, AdbScrcpyOptions3_3_3 } from "@yume-chan/adb-scrcpy";
 import {
@@ -33,7 +31,7 @@ const TOUCH_ACTIONS = {
 } as const;
 
 type Client = AdbScrcpyClient<AdbScrcpyOptions3_3_3<true>>;
-// Класс видеопотока не экспортируется из пакета, берём его тип из клиента.
+// The video stream class isn't exported, so derive its type from the client.
 type VideoStream = NonNullable<Awaited<Client["videoStream"]>>;
 
 interface Session {
@@ -56,7 +54,7 @@ export class MirrorManager {
     private readonly devices: DeviceManager,
     serverPath: string,
     private readonly sink: MirrorSink,
-    /** Качество потока из настроек; читается при каждом запуске сессии. */
+    /** Read on every session start, so settings changes apply on reconnect. */
     private readonly stream: () => StreamSettings = () => DEFAULT_STREAM,
   ) {
     this.#server = readFile(serverPath);
@@ -66,7 +64,7 @@ export class MirrorManager {
     return this.#sessions.has(serial);
   }
 
-  /** Гарантирует, что сессия scrcpy запущена (нужна для управления), не перезапуская уже работающую. */
+  /** Starts a session if needed, without restarting one that is already running. */
   async ensure(serial: string): Promise<void> {
     const pending = this.#sessions.get(serial);
     if (pending && (await pending.then(() => true, () => false))) return;
@@ -74,7 +72,7 @@ export class MirrorManager {
   }
 
   async start(serial: string): Promise<{ width: number; height: number }> {
-    // Повторный start (например, после пересоздания плитки) перезапускает поток, чтобы декодер получил конфигурацию заново.
+    // Restart so a freshly created decoder receives the codec configuration again.
     if (this.#sessions.has(serial)) await this.stop(serial);
 
     const pending = this.#open(serial);
@@ -109,7 +107,6 @@ export class MirrorManager {
     }
     await pushed;
 
-    // По умолчанию небольшое разрешение и битрейт: на ферме одновременно идут десятки потоков.
     const quality = this.stream();
     const options = new AdbScrcpyOptions3_3_3({
       audio: false,
@@ -120,7 +117,6 @@ export class MirrorManager {
       maxFps: quality.maxFps,
       stayAwake: quality.stayAwake,
       clipboardAutosync: false,
-      // Forward-туннель не требует локального сервера для reverse-подключений и проще уживается с десятками устройств.
       tunnelForward: true,
       scid: ScrcpyInstanceId.random(),
     });
@@ -136,7 +132,7 @@ export class MirrorManager {
     video.sizeChanged(({ width, height }) => this.sink.size(serial, width, height));
     void this.#pump(serial, session);
 
-    // Логи scrcpy-сервера нужно вычитывать, иначе поток может встать.
+    // Server logs must be drained, otherwise the stream can stall.
     void drainLog(serial, client.output);
 
     return session;
@@ -159,7 +155,7 @@ export class MirrorManager {
     } catch (e) {
       reason = e instanceof Error ? e.message : String(e);
     }
-    // Сессия могла быть уже заменена новой — тогда об остановке не сообщаем.
+    // Don't report if the session has already been replaced by a new one.
     const current = this.#sessions.get(serial);
     if (current && (await current.catch(() => undefined)) === session) {
       this.#sessions.delete(serial);
@@ -175,7 +171,7 @@ export class MirrorManager {
       const { client } = await pending;
       await client.close();
     } catch {
-      // уже закрыт или не успел открыться
+      // already closed or never opened
     }
   }
 
@@ -196,7 +192,7 @@ export class MirrorManager {
     }
   }
 
-  // --- Управление. Ошибки отдельных устройств глушим: одно отвалившееся устройство не должно ломать трансляцию на остальные. ---
+  // Per-device control errors are swallowed so one dropped device doesn't break broadcast to the rest.
 
   async touch(serials: string[], event: TouchEvent): Promise<void> {
     await Promise.all(
@@ -255,7 +251,7 @@ export class MirrorManager {
             await ctl.injectKeyCode({ action, keyCode, repeat: 0, metaState: 0 });
           }
         } catch {
-          // устройство отключилось
+          // device disconnected
         }
       }),
     );
@@ -280,7 +276,7 @@ async function drainLog(serial: string, output: ReadableStream<string>): Promise
       if (/ERROR|WARN/.test(value)) console.warn(`[scrcpy ${serial}] ${value}`);
     }
   } catch {
-    // поток закрыт вместе с сессией
+    // closed together with the session
   }
 }
 

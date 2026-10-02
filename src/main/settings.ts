@@ -1,5 +1,3 @@
-// Хранилище настроек: userData/settings.json. Секретов здесь нет (токен CyberYozh лежит в зашифрованном proxy-settings.json).
-
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { dirname } from "node:path";
 import { setLang, type Lang } from "@shared/i18n";
@@ -15,7 +13,7 @@ export class SettingsStore {
     this.#settings = defaultSettings("ru");
   }
 
-  /** `defaultLang` — язык при первом запуске, по локали ОС. */
+  /** `defaultLang` applies on first run only. */
   async load(defaultLang: Lang): Promise<void> {
     this.#settings = defaultSettings(defaultLang);
     try {
@@ -45,7 +43,7 @@ export class SettingsStore {
   }
 
   #persist(): Promise<void> {
-    // Как и у сценариев: записи по очереди, файл подменяется атомарно.
+    // Serialized writes plus atomic rename, same as scenarios.
     this.#saving = this.#saving.catch(() => {}).then(async () => {
       await mkdir(dirname(this.path), { recursive: true });
       const tmp = `${this.path}.tmp`;

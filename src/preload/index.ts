@@ -1,7 +1,6 @@
 import { contextBridge, ipcRenderer, type IpcRendererEvent } from "electron";
-import type { DeviceInfo, FarmApi, ProxyState, RecordingStatus, RunStatus, VideoPacket } from "@shared/types";
+import type { DeviceInfo, FarmApi, ProxyState, RecordingStatus, RunStatus, UpdateStatus, VideoPacket } from "@shared/types";
 
-// Наружу отдаём только узкий типизированный API, без доступа к ipcRenderer.
 function subscribe<A extends unknown[]>(channel: string, listener: (...args: A) => void): () => void {
   const wrapped = (_e: IpcRendererEvent, ...args: unknown[]) => listener(...(args as A));
   ipcRenderer.on(channel, wrapped);
@@ -69,6 +68,13 @@ const api: FarmApi = {
     stop: () => ipcRenderer.invoke("recorder:stop"),
     cancel: () => ipcRenderer.invoke("recorder:cancel"),
     onStatus: (listener) => subscribe<[RecordingStatus | null]>("recorder:status", listener),
+  },
+  updates: {
+    status: () => ipcRenderer.invoke("updates:status"),
+    check: () => ipcRenderer.invoke("updates:check"),
+    download: () => ipcRenderer.invoke("updates:download"),
+    install: () => ipcRenderer.invoke("updates:install"),
+    onStatus: (listener) => subscribe<[UpdateStatus]>("updates:status", listener),
   },
 };
 

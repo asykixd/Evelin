@@ -1,7 +1,7 @@
 {
   "name": "evelin",
   "productName": "Evelin",
-  "version": "1.0.1",
+  "version": "1.1.0",
   "private": true,
   "description": "Evelin — control panel for a farm of USB-connected Android devices",
   "author": "asyki <asyki@list.ru>",

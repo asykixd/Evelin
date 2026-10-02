@@ -14,6 +14,7 @@ import { Recorder } from "./recorder";
 import { ScenarioRunner } from "./runner";
 import { ScenarioStore } from "./scenarios";
 import { SettingsStore } from "./settings";
+import { Updater } from "./updater";
 
 const settings = new SettingsStore(join(app.getPath("userData"), "settings.json"));
 const devices = new DeviceManager(() => settings.get().adbPath);
@@ -21,6 +22,7 @@ const proxies = new ProxyStore(join(app.getPath("userData"), "proxy-settings.jso
 const scenarios = new ScenarioStore(join(app.getPath("userData"), "scenarios.json"));
 const recorder = new Recorder(devices);
 let win: BrowserWindow | undefined;
+const updater = new Updater(() => win);
 
 const mirror = new MirrorManager(
   devices,
@@ -33,14 +35,12 @@ const mirror = new MirrorManager(
   () => settings.get().stream,
 );
 
-/** Сообщает renderer об изменившемся списке прокси и возвращает его. */
 function proxyChanged(): ProxyState {
   const state = proxies.state();
   win?.webContents.send("proxy:changed", state);
   return state;
 }
 
-// Периодическое обновление списка CyberYozh (период — в настройках).
 let yozhTimer: NodeJS.Timeout | undefined;
 
 function scheduleYozhRefresh(): void {
@@ -53,8 +53,6 @@ function scheduleYozhRefresh(): void {
     proxies.refreshCyberyozh().then(proxyChanged, (e) => console.warn("[proxy] автообновление CyberYozh:", e));
   }, minutes * 60_000);
 }
-
-// --- Прокси на устройстве: общие для кнопок в интерфейсе и для шагов сценариев ---
 
 async function assignNextProxy(serial: string): Promise<string> {
   const p = proxies.next();
@@ -96,14 +94,12 @@ function createWindow(): void {
     },
   });
 
-  // Никакой навигации и новых окон внутри приложения; внешние ссылки — в браузере.
   win.webContents.on("will-navigate", (e) => e.preventDefault());
   win.webContents.setWindowOpenHandler(({ url }) => {
     if (url.startsWith("https://")) void shell.openExternal(url);
     return { action: "deny" };
   });
 
-  // В режиме разработки дублируем ошибки renderer в терминал.
   if (!app.isPackaged) {
     win.webContents.on("console-message", (e) => {
       if (e.level === "warning" || e.level === "error") console.log(`[renderer:${e.level}] ${e.message}`);
@@ -118,8 +114,6 @@ function createWindow(): void {
     void mirror.stopAll();
   });
 }
-
-// --- Валидация IPC: всё, что пришло из renderer, считаем недоверенным. ---
 
 function isTrustedSender(e: IpcMainEvent | IpcMainInvokeEvent): boolean {
   const url = e.senderFrame?.url ?? "";
@@ -172,7 +166,6 @@ function streamOf(bytes: Uint8Array): ReadableStream<Uint8Array> {
 }
 
 function registerIpc(): void {
-  // Настройки
   handle("settings:get", () => settings.get());
   handle("settings:update", (patch: unknown) => settings.update(patch));
   handle("settings:pickAdb", async () => {
@@ -186,11 +179,9 @@ function registerIpc(): void {
     await shell.openPath(app.getPath("userData"));
   });
 
-  // Устройства
   handle("devices:list", () => devices.list());
   handle("devices:refresh", (s: unknown) => devices.refresh(serial(s)));
 
-  // Трансляция
   handle("mirror:start", async (s: unknown) => {
     try {
       return { success: true, ...(await mirror.start(serial(s))) };
@@ -200,7 +191,7 @@ function registerIpc(): void {
   });
   handle("mirror:stop", (s: unknown) => (typeof s === "string" ? mirror.stop(s) : undefined));
 
-  // Управление (fire-and-forget, чтобы не копить задержку на каждом движении пальца)
+  // Fire-and-forget so latency doesn't pile up on every pointer move.
   on("control:touch", (list: unknown, ev: unknown) => {
     const e = ev as TouchEvent;
     if (!e || !TOUCH_ACTIONS.has(e.action)) return;
@@ -225,10 +216,9 @@ function registerIpc(): void {
     return mirror.text(targets, text);
   });
 
-  // Пакетные операции
   handle("batch:shell", (list: unknown, command: unknown) => {
     if (typeof command !== "string" || !command.trim()) throw new Error(t("err.emptyCommand"));
-    // Команда намеренно выполняется как есть: это консоль для оператора фермы, она исполняется на телефоне, не на ПК.
+    // Intentionally unescaped: an operator console that runs on the phone, not on the host.
     return devices.forEach(serials(list), (s) => devices.shell(s, command));
   });
 
@@ -289,7 +279,6 @@ function registerIpc(): void {
     devices.forEach(serials(list), (s) => devices.shell(s, "input keyevent KEYCODE_WAKEUP").then(() => {})),
   );
 
-  // Прокси
   handle("proxy:state", () => proxies.state());
   handle("proxy:importFile", async () => {
     if (!win) return proxies.state();
@@ -332,7 +321,6 @@ function registerIpc(): void {
     }),
   );
 
-  // Сценарии
   const scenarioError = (e: unknown) => {
     if (isInvalidScenario(e)) return new Error(t("val.invalid", { message: e.message }));
     return e;
@@ -353,7 +341,7 @@ function registerIpc(): void {
   handle("scenarios:export", async (id: unknown) => {
     const scenario = typeof id === "string" ? scenarios.get(id) : undefined;
     if (!scenario || !win) return false;
-    // Вложенные сценарии экспортируем вместе с основным, чтобы файл был самодостаточным.
+    // Bundle nested scenarios so the exported file is self-contained.
     const bundle = new Map([[scenario.id, scenario]]);
     for (let added = true; added; ) {
       added = false;
@@ -396,7 +384,6 @@ function registerIpc(): void {
   handle("scenarios:stop", (list: unknown) => runner.stop(list === undefined ? undefined : (Array.isArray(list) ? list.filter((s) => typeof s === "string") : [])));
   handle("scenarios:runs", () => runner.list());
 
-  // Запись
   handle("recorder:start", (s: unknown) => {
     const target = serial(s);
     if (runner.isBusy(target)) throw new Error(t("err.runningOnDevice"));
@@ -410,10 +397,15 @@ function registerIpc(): void {
     return scenarios.save(scenario);
   });
   handle("recorder:cancel", () => recorder.cancel());
+
+  handle("updates:status", () => updater.status());
+  handle("updates:check", () => updater.check(true));
+  handle("updates:download", () => updater.download());
+  handle("updates:install", () => updater.install());
 }
 
 app.whenReady().then(async () => {
-  // Строгая CSP и для dev-сервера, и для собранной версии; в dev Vite нужен inline-скрипт для HMR.
+  // Vite HMR needs inline scripts in dev.
   session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
     const csp = DEV_URL
       ? "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src 'self' ws:; img-src 'self' data: blob:"
@@ -444,8 +436,10 @@ app.whenReady().then(async () => {
   });
   runner.onChange((runs) => win?.webContents.send("scenarios:runs", runs));
   recorder.onStatus((status) => win?.webContents.send("recorder:status", status));
+  updater.onStatus((status) => win?.webContents.send("updates:status", status));
 
   createWindow();
+  updater.start();
 
   try {
     await devices.start();
@@ -464,6 +458,7 @@ app.on("before-quit", () => {
   recorder.cancel();
   void mirror.stopAll();
   void devices.stop();
+  updater.installOnQuit();
 });
 
 app.on("window-all-closed", () => {

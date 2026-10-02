@@ -131,7 +131,7 @@ export function ProxyPanel({ targets, run, onOpenSettings }: Props) {
   );
 }
 
-/** Подставляет в перевод фрагменты кода (`{name}`), оборачивая их в <code>. */
+/** Substitutes `{name}` placeholders with <code> fragments. */
 function withCode(text: string, parts: Record<string, string>) {
   return text.split(/(\{\w+\})/).map((chunk, i) => {
     const name = /^\{(\w+)\}$/.exec(chunk)?.[1];

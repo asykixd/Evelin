@@ -10,11 +10,10 @@ interface Props {
   selected: boolean;
   focused: boolean;
   recording: boolean;
-  /** Выполняющийся на устройстве сценарий. */
   run?: RunStatus;
-  /** Меняется вместе с настройками трансляции — тогда поток перезапускается. */
+  /** Changes with stream settings, which restarts the stream. */
   streamKey: string;
-  /** На какие устройства отправлять ввод с этой плитки (с учётом режима трансляции). */
+  /** Input targets for this tile, depending on broadcast mode. */
   targets: () => string[];
   onToggleSelect: () => void;
   onToggleFocus: () => void;
@@ -37,14 +36,14 @@ export function DeviceTile({ device, selected, focused, recording, run, streamKe
     let cancelled = false;
     setStatus({ kind: "connecting" });
 
-    // Декодер создаём до запуска потока, чтобы не потерять первый пакет с конфигурацией кодека.
+    // Create the decoder before starting the stream so the codec configuration packet isn't lost.
     const decoder = new WebCodecsVideoDecoder({
       codec: ScrcpyVideoCodecId.H264,
-      // Bitmap-рендерер не тратит WebGL-контексты: их в Chromium не больше ~16 на страницу, а устройств бывает больше.
+      // Not WebGL: Chromium caps WebGL contexts at ~16 per page.
       renderer: new BitmapVideoFrameRenderer(canvas),
     });
     const writer = decoder.writable.getWriter();
-    // Поток может перезапуститься из main (например, сценарием) — тогда плитка снова оживает сама.
+    // Main may restart the stream (e.g. a scenario run); the tile then resumes on its own.
     let live = false;
 
     const unroute = route(device.serial, {
@@ -73,8 +72,6 @@ export function DeviceTile({ device, selected, focused, recording, run, streamKe
       decoder.dispose();
     };
   }, [device.serial, online, attempt, streamKey]);
-
-  // --- Ввод ---
 
   function point(e: PointerEvent | WheelEvent) {
     const rect = canvasRef.current!.getBoundingClientRect();

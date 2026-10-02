@@ -1,5 +1,3 @@
-// Хранилище сценариев: userData/scenarios.json. Секретов здесь нет, поэтому файл не шифруется.
-
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { dirname } from "node:path";
 import { newId, sanitizeScenario } from "@shared/scenario";
@@ -44,7 +42,7 @@ export class ScenarioStore {
     return scenario;
   }
 
-  /** Импорт: всегда новые id, чтобы не затереть существующие сценарии. Ссылки runScenario внутри файла переназначаются. */
+  /** Imports always get fresh ids; runScenario references within the file are remapped. */
   async import(raw: unknown): Promise<Scenario[]> {
     const items = Array.isArray(raw) ? raw : [raw];
     const parsed = items.map(sanitizeScenario);
@@ -65,7 +63,7 @@ export class ScenarioStore {
   }
 
   #persist(): Promise<void> {
-    // Записи сериализуются, а файл подменяется атомарно, чтобы не получить обрезанный JSON.
+    // Serialized writes plus atomic rename, so the file is never left truncated.
     this.#saving = this.#saving.catch(() => {}).then(async () => {
       await mkdir(dirname(this.path), { recursive: true });
       const tmp = `${this.path}.tmp`;

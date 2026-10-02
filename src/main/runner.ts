@@ -1,5 +1,3 @@
-// Выполнение сценариев: на каждом устройстве свой независимый цикл, остановка через AbortSignal.
-
 import { randomUUID } from "node:crypto";
 import { t } from "@shared/i18n";
 import { PACKAGE_RE, stepLabel } from "@shared/scenario";
@@ -15,7 +13,6 @@ export interface RunnerDeps {
   devices: DeviceManager;
   mirror: MirrorManager;
   scenarios: ScenarioStore;
-  /** Назначает устройству следующий прокси из общего круга; возвращает описание. */
   assignNextProxy(serial: string): Promise<string>;
   clearProxy(serial: string): Promise<void>;
 }
@@ -72,9 +69,7 @@ export class ScenarioRunner {
     if (scenario.steps.length === 0) throw new Error(t("err.noSteps"));
 
     for (const serial of serials) {
-      // На устройстве одновременно выполняется только один сценарий.
       this.stop([serial]);
-      // Завершённые записи по этому устройству убираем, чтобы список не разрастался.
       for (const [id, r] of this.#runs) if (r.status.serial === serial) this.#runs.delete(id);
 
       const run: Run = {
@@ -225,7 +220,7 @@ export class ScenarioRunner {
         if (depth >= MAX_NESTING) throw new Error(t("err.nestingTooDeep"));
         const nested = this.deps.scenarios.get(step.scenarioId);
         if (!nested) throw new Error(t("err.nestedNotFound"));
-        // Вложенный сценарий выполняется один раз, его собственные повторы игнорируются.
+        // Nested scenarios run once; their own repeat settings are ignored.
         await this.#steps({ serial } as RunStatus, nested, iteration, signal, depth + 1, false);
         return;
       }
@@ -244,7 +239,7 @@ export class ScenarioRunner {
         last = p;
       }
     } finally {
-      // Если жест прервали, не оставляем палец «зажатым» на экране.
+      // Don't leave the finger pressed if the gesture was interrupted.
       if (last && last.action !== "up") await this.deps.mirror.touch([serial], { action: "up", x: last.x, y: last.y });
     }
   }

@@ -4,7 +4,7 @@ import { App } from "./App";
 import { SettingsProvider } from "./settings";
 import "./styles.css";
 
-// Настройки (в том числе язык) нужны до первого рендера, чтобы интерфейс не мигал другим языком.
+// Load settings before the first render so the UI doesn't flash in the wrong language.
 void window.farm.settings.get().then((settings) => {
   createRoot(document.getElementById("root")!).render(
     <StrictMode>

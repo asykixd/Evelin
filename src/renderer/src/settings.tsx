@@ -4,7 +4,7 @@ import type { AppSettings } from "@shared/types";
 
 interface SettingsContextValue {
   settings: AppSettings;
-  /** Сохраняет изменения в main; при ошибке валидации бросает исключение. */
+  /** Throws if main rejects the patch. */
   update(patch: Partial<AppSettings>): Promise<void>;
 }
 
@@ -12,7 +12,7 @@ const SettingsContext = createContext<SettingsContextValue | null>(null);
 
 export function SettingsProvider({ initial, children }: { initial: AppSettings; children: ReactNode }) {
   const [settings, setSettings] = useState(initial);
-  // Язык выставляем до рендера детей, чтобы t() сразу отдавал нужные строки.
+  // Set before children render so t() returns the right language immediately.
   setLang(settings.language);
 
   useEffect(() => {
@@ -30,7 +30,7 @@ export function useSettings(): SettingsContextValue {
   return ctx;
 }
 
-/** Возвращает `t` и перерисовывает компонент при смене языка. */
+/** Returns `t` and re-renders the component when the language changes. */
 export function useT(): typeof t {
   useSettings();
   return t;

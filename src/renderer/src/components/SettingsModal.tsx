@@ -48,7 +48,7 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
   const set = (patch: Partial<AppSettings>) => guard(() => update(patch));
   const setStream = (patch: Partial<StreamSettings>) => set({ stream: { ...settings.stream, ...patch } });
 
-  // Текстовые поля сохраняются при потере фокуса или Enter; при ошибке возвращаем сохранённое значение.
+  // Text fields save on blur or Enter and revert to the saved value on error.
   const commitTestUrl = () =>
     testUrl !== settings.proxyTestUrl &&
     guard(async () => {
@@ -257,7 +257,7 @@ function Row({ label, hint, children }: { label: string; hint?: string; children
   );
 }
 
-/** Добавляет текущее значение в список вариантов, если его там нет (например, настройка задана вручную в файле). */
+/** Keeps a hand-edited value selectable even if it's not among the presets. */
 function withCurrent(options: number[], current: number): number[] {
   return options.includes(current) ? options : [...options, current].sort((a, b) => a - b);
 }

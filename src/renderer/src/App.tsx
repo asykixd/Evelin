@@ -8,6 +8,7 @@ import { ScenarioEditor } from "./components/ScenarioEditor";
 import { ScenariosPanel } from "./components/ScenariosPanel";
 import { SettingsModal } from "./components/SettingsModal";
 import { useSettings, useT } from "./settings";
+import { UpdateBadge } from "./components/UpdateBadge";
 
 type Tab = "actions" | "scenarios" | "proxy";
 
@@ -37,14 +38,14 @@ export function App() {
   const [recording, setRecording] = useState<RecordingStatus | null>(null);
   const [editing, setEditing] = useState<Scenario | undefined>();
   const [settingsOpen, setSettingsOpen] = useState(false);
-  // Смена качества трансляции в настройках переподключает все плитки.
+  // Changing stream quality reconnects every tile.
   const streamKey = JSON.stringify(settings.stream);
 
   useEffect(() => {
     try {
       localStorage.setItem(TILE_WIDTH_KEY, String(tileWidth));
     } catch {
-      // хранилище недоступно — размер просто не запомнится
+      // storage unavailable; the size just won't persist
     }
   }, [tileWidth]);
 
@@ -56,7 +57,6 @@ export function App() {
     return () => offs.forEach((off) => off());
   }, []);
 
-  // Убираем из выделения отключившиеся устройства.
   useEffect(() => {
     const present = new Set(devices.map((d) => d.serial));
     setSelected((prev) => {
@@ -66,7 +66,7 @@ export function App() {
     if (focused && !present.has(focused)) setFocused(undefined);
   }, [devices, focused]);
 
-  // Плитки читают актуальное состояние через ref, чтобы не пересоздавать обработчики на каждое изменение выделения.
+  // Tiles read selection through a ref so their handlers aren't recreated on every change.
   const stateRef = useRef({ broadcast, selected });
   stateRef.current = { broadcast, selected };
 
@@ -76,7 +76,6 @@ export function App() {
   }, []);
 
   const online = useMemo(() => devices.filter((d) => d.state === "device"), [devices]);
-  // Пакетные действия применяются к выбранным устройствам, а если ничего не выбрано — ко всем подключённым.
   const actionTargets = useMemo(
     () => (selected.size > 0 ? [...selected] : online.map((d) => d.serial)),
     [selected, online],
@@ -128,6 +127,7 @@ export function App() {
     <div className="app">
       <header className="topbar">
         <div className="brand">Evelin</div>
+        <UpdateBadge />
         <div className="topbar-stats">
           <span>
             {t("top.devices")} <b>{online.length}</b>

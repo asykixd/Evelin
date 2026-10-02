@@ -25,9 +25,8 @@ mac:
     - target: zip
       arch: [arm64, x64]
   artifactName: ${productName}-${version}-mac-${arch}.${ext}
-  # Ad-hoc подпись: без сертификата Developer ID сборка не нотаризуется,
-  # поэтому при первом запуске macOS попросит подтверждение (см. README).
-  # Для подписи сертификатом уберите identity и задайте CSC_LINK / CSC_KEY_PASSWORD.
+  # Ad-hoc signature: not notarized, so macOS asks for confirmation on first launch.
+  # To sign with a Developer ID, drop `identity` and set CSC_LINK / CSC_KEY_PASSWORD.
   identity: "-"
   hardenedRuntime: false
 

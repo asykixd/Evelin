@@ -1,5 +1,3 @@
-// Порт ProxyController из proxy_controller.py: прокси из файла + активные прокси CyberYozh, раздача по кругу.
-
 import { readFile, writeFile, mkdir } from "node:fs/promises";
 import { dirname } from "node:path";
 import { safeStorage } from "electron";
@@ -8,7 +6,6 @@ import type { Proxy, ProxyState } from "@shared/types";
 
 const CYBERYOZH_URL = "https://app.cyberyozh.com/api/v1/proxies/history/";
 
-// Хост — домен или IPv4, порт — 1..65535. Всё остальное отбрасываем ещё при разборе.
 const HOST_RE = /^(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)*[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?$/;
 
 export function isValidHostPort(host: string, port: string): boolean {
@@ -16,7 +13,7 @@ export function isValidHostPort(host: string, port: string): boolean {
   return HOST_RE.test(host) && /^\d+$/.test(port) && n >= 1 && n <= 65535;
 }
 
-/** Формат строки: `type://host:port[:login[:password]]`, `#` — комментарий. */
+/** Line format: `type://host:port[:login[:password]]`; `#` starts a comment. */
 export function parseProxyLines(text: string): Proxy[] {
   const proxies: Proxy[] = [];
   for (const raw of text.split(/\r?\n/)) {
@@ -62,7 +59,7 @@ interface StoredSettings {
   cyberyozhToken?: string;
 }
 
-/** На диске весь файл шифруется safeStorage (Keychain / DPAPI / libsecret): там пароли прокси и токен. */
+/** Encrypted with safeStorage as a whole: it holds proxy passwords and the API token. */
 interface SettingsFile {
   encrypted?: string;
 }
@@ -82,7 +79,6 @@ export class ProxyStore {
         this.#settings = { fileProxies: data.fileProxies ?? [], cyberyozhToken: data.cyberyozhToken };
       }
     } catch (e) {
-      // первый запуск (файла ещё нет) или файл повреждён — начинаем с пустых настроек
       if ((e as NodeJS.ErrnoException).code !== "ENOENT") console.warn("[proxy] не удалось прочитать настройки:", e);
     }
     if (this.#token()) await this.refreshCyberyozh().catch(() => {});
@@ -101,7 +97,6 @@ export class ProxyStore {
 
   state(): ProxyState {
     return {
-      // Сначала CyberYozh, потом файл — тот же порядок, что и в get_next_proxy.
       proxies: [...this.#cyberyozh, ...this.#settings.fileProxies],
       hasCyberyozhToken: Boolean(this.#settings.cyberyozhToken),
       encryptionAvailable: safeStorage.isEncryptionAvailable(),

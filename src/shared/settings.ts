@@ -1,5 +1,3 @@
-// Настройки приложения: значения по умолчанию и строгая валидация (данные приходят из renderer и с диска).
-
 import { isLang, t, type Lang } from "./i18n";
 import type { AppSettings, StreamSettings } from "./types";
 
@@ -48,7 +46,7 @@ export function isHttpUrl(v: string): boolean {
   }
 }
 
-/** Накладывает `patch` на `base`, проверяя каждое поле. Неизвестные поля отбрасываются. */
+/** Validates every field of `patch`; unknown fields are dropped. */
 export function mergeSettings(base: AppSettings, patch: unknown): AppSettings {
   if (!patch || typeof patch !== "object") bad("object");
   const p = patch as Record<string, unknown>;
@@ -81,7 +79,7 @@ export function mergeSettings(base: AppSettings, patch: unknown): AppSettings {
   return next;
 }
 
-/** Читает настройки с диска: повреждённые поля молча заменяются значениями по умолчанию. */
+/** Corrupted fields silently fall back to defaults. */
 export function loadSettings(raw: unknown, defaults: AppSettings): AppSettings {
   let result = defaults;
   if (!raw || typeof raw !== "object") return result;
@@ -93,7 +91,7 @@ export function loadSettings(raw: unknown, defaults: AppSettings): AppSettings {
         try {
           result = mergeSettings(result, { stream: { [k]: v } });
         } catch {
-          // поле повреждено — оставляем значение по умолчанию
+          // keep the default
         }
       }
       continue;
@@ -101,7 +99,7 @@ export function loadSettings(raw: unknown, defaults: AppSettings): AppSettings {
     try {
       result = mergeSettings(result, { [key]: o[key] });
     } catch {
-      // то же
+      // keep the default
     }
   }
   return result;

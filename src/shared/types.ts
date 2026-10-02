@@ -1,5 +1,3 @@
-// Типы, общие для main, preload и renderer.
-
 import type { Lang } from "./i18n";
 
 export type DeviceState = "device" | "unauthorized" | "offline";
@@ -11,11 +9,10 @@ export interface DeviceInfo {
   brand?: string;
   androidVersion?: string;
   battery?: number;
-  /** Текущее значение `settings get global http_proxy`, пустая строка — прокси нет. */
+  /** `settings get global http_proxy`; empty when no proxy is set. */
   proxy?: string;
 }
 
-/** Результат операции над одним устройством. Методы никогда не бросают исключения наружу. */
 export interface DeviceResult {
   serial: string;
   success: boolean;
@@ -35,7 +32,6 @@ export interface Proxy {
 export interface ProxyState {
   proxies: Proxy[];
   hasCyberyozhToken: boolean;
-  /** Можно ли зашифровать токен средствами ОС (Keychain / DPAPI / libsecret). */
   encryptionAvailable: boolean;
 }
 
@@ -46,7 +42,6 @@ export interface MirrorStarted {
   error?: string;
 }
 
-/** Пакет видеопотока scrcpy, сериализуемый через IPC. */
 export interface VideoPacket {
   type: "configuration" | "data";
   keyframe?: boolean;
@@ -55,7 +50,7 @@ export interface VideoPacket {
 
 export type TouchAction = "down" | "move" | "up";
 
-/** Координаты нормализованы в диапазон 0..1, чтобы одно касание можно было транслировать на устройства с разным разрешением. */
+/** Normalized to 0..1 so one touch can be broadcast to devices with different resolutions. */
 export interface TouchEvent {
   action: TouchAction;
   x: number;
@@ -64,9 +59,7 @@ export interface TouchEvent {
 
 export type NavKey = "back" | "home" | "recents" | "power" | "volume_up" | "volume_down";
 
-// --- Сценарии (пресеты) ---
-
-/** Точка жеста; `t` — миллисекунды от начала касания. */
+/** `t` is milliseconds since touch down. */
 export interface GesturePoint {
   t: number;
   action: TouchAction;
@@ -76,9 +69,8 @@ export interface GesturePoint {
 
 export interface StepBase {
   id: string;
-  /** Выключенный шаг пропускается. */
   enabled: boolean;
-  /** Выполнять только на 1-м, (N+1)-м, (2N+1)-м… повторе. 1 или пусто — каждый раз. */
+  /** Run only on iterations 1, N+1, 2N+1…; unset or 1 means every time. */
   everyNth?: number;
 }
 
@@ -104,11 +96,9 @@ export interface Scenario {
   id: string;
   name: string;
   steps: Step[];
-  /** Сколько раз повторить; 0 — бесконечно, пока не остановят. */
+  /** 0 repeats until stopped. */
   repeat: number;
-  /** Пауза между повторами, мс. */
   pauseMs: number;
-  /** Продолжать при ошибке шага вместо остановки сценария на этом устройстве. */
   continueOnError: boolean;
   updatedAt: number;
 }
@@ -121,7 +111,7 @@ export interface RunStatus {
   scenarioName: string;
   serial: string;
   state: RunState;
-  /** Номер текущего повтора, с 1. */
+  /** 1-based. */
   iteration: number;
   stepIndex: number;
   stepCount: number;
@@ -133,33 +123,30 @@ export interface RecordingStatus {
   serial: string;
   startedAt: number;
   events: number;
-  /** Удалось ли подключиться к сенсору телефона (getevent), чтобы записывать касания по самому телефону. */
+  /** Whether getevent attached, so touches on the phone itself are recorded too. */
   physical: boolean;
   physicalError?: string;
 }
 
-// --- Настройки ---
-
 export interface StreamSettings {
-  /** Длинная сторона видео, px. */
+  /** Long side of the video, px. */
   maxSize: number;
-  /** Мбит/с. */
+  /** Mbit/s. */
   bitRate: number;
   maxFps: number;
-  /** Держать экран включённым, пока идёт трансляция. */
   stayAwake: boolean;
 }
 
 export interface AppSettings {
   language: Lang;
-  /** Спрашивать подтверждение перед перезагрузкой и удалением. */
+  /** Ask before reboot and delete. */
   confirmDanger: boolean;
   stream: StreamSettings;
-  /** Адрес, который запрашивается curl-ом с устройства при проверке IP. */
+  /** URL fetched with curl on the device to test the proxy. */
   proxyTestUrl: string;
-  /** Период автообновления списка CyberYozh, минуты; 0 — выключено. */
+  /** Minutes; 0 disables. */
   cyberyozhRefreshMin: number;
-  /** Свой путь к adb; пусто — искать автоматически. */
+  /** Empty means auto-detect. */
   adbPath: string;
 }
 
@@ -168,11 +155,26 @@ export interface AppInfo {
   dataDir: string;
 }
 
+export type UpdateState = "idle" | "checking" | "latest" | "available" | "downloading" | "ready" | "error";
+
+export interface UpdateStatus {
+  state: UpdateState;
+  current: string;
+  latest?: string;
+  /** GitHub release page. */
+  url?: string;
+  /** 0..1 while downloading. */
+  progress?: number;
+  /** False for dev builds, the portable zip or a read-only install location; the release page is offered instead. */
+  canInstall: boolean;
+  error?: string;
+}
+
 export interface FarmApi {
   settings: {
     get(): Promise<AppSettings>;
     update(patch: Partial<AppSettings>): Promise<AppSettings>;
-    /** Диалог выбора файла adb; undefined — отменено. */
+    /** undefined when cancelled. */
     pickAdbPath(): Promise<string | undefined>;
     info(): Promise<AppInfo>;
     openDataDir(): Promise<void>;
@@ -209,11 +211,10 @@ export interface FarmApi {
     clearFileProxies(): Promise<ProxyState>;
     setCyberyozhToken(token: string): Promise<ProxyState>;
     refreshCyberyozh(): Promise<{ state: ProxyState; error?: string }>;
-    /** Раздаёт прокси выбранным устройствам по кругу (round-robin). */
     assign(serials: string[]): Promise<DeviceResult[]>;
     clear(serials: string[]): Promise<DeviceResult[]>;
     test(serials: string[]): Promise<DeviceResult[]>;
-    /** Список прокси изменился в main (например, автообновление CyberYozh). */
+    /** Fires when main changes the list, e.g. on CyberYozh auto-refresh. */
     onChange(listener: (state: ProxyState) => void): () => void;
   };
   scenarios: {
@@ -221,19 +222,27 @@ export interface FarmApi {
     save(scenario: Scenario): Promise<Scenario[]>;
     remove(id: string): Promise<Scenario[]>;
     exportFile(id: string): Promise<boolean>;
-    /** Возвращает список и число импортированных сценариев с shell-шагами — их стоит проверить перед запуском. */
+    /** `withShell` counts imported scenarios containing shell steps, which deserve a review before running. */
     importFile(): Promise<{ scenarios: Scenario[]; imported: number; withShell: number }>;
     run(id: string, serials: string[]): Promise<void>;
-    /** Без аргумента — остановить всё. */
+    /** Stops everything when called without arguments. */
     stop(serials?: string[]): Promise<void>;
     runs(): Promise<RunStatus[]>;
     onRuns(listener: (runs: RunStatus[]) => void): () => void;
   };
   recorder: {
     start(serial: string): Promise<RecordingStatus>;
-    /** Останавливает запись и сохраняет её как новый сценарий. */
+    /** Saves the recording as a new scenario. */
     stop(): Promise<Scenario | undefined>;
     cancel(): Promise<void>;
     onStatus(listener: (status: RecordingStatus | null) => void): () => void;
+  };
+  updates: {
+    status(): Promise<UpdateStatus>;
+    check(): Promise<UpdateStatus>;
+    download(): Promise<void>;
+    /** Quits, installs the downloaded update and relaunches. */
+    install(): Promise<void>;
+    onStatus(listener: (status: UpdateStatus) => void): () => void;
   };
 }

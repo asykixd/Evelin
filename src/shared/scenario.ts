@@ -1,5 +1,3 @@
-// Общая логика сценариев: строгая валидация (данные приходят из UI и из импортируемых файлов), описания и шаблоны шагов.
-
 import { t } from "./i18n";
 import type { GesturePoint, NavKey, Scenario, Step, StepBody, StepType, TouchAction } from "./types";
 
@@ -90,8 +88,6 @@ export function describeStep(step: Step, scenarios: readonly Scenario[] = []): s
   }
 }
 
-// --- Валидация ---
-
 class InvalidScenario extends Error {}
 
 function fail(message: string): never {
@@ -111,7 +107,7 @@ function str(v: unknown, max: number, what: string): string {
 
 function pkg(v: unknown): string {
   const s = str(v, 256, t("field.package")).trim();
-  // Пустой пакет допустим при редактировании, при запуске такой шаг упадёт с понятной ошибкой.
+  // Empty is allowed while editing; the runner rejects it with a clear error.
   if (s && !PACKAGE_RE.test(s)) fail(t("val.badPackage", { pkg: s }));
   return s;
 }

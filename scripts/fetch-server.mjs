@@ -1,4 +1,4 @@
-// Скачивает scrcpy-server нужной версии и кладёт его в resources/.
+// Downloads the pinned scrcpy-server into resources/.
 import { execFileSync } from "node:child_process";
 import { copyFileSync, existsSync, readFileSync } from "node:fs";
 import { createRequire } from "node:module";

@@ -71,7 +71,6 @@ export function ScenarioEditor({ scenario, scenarios, onSaved, onClose }: Props)
     }
   }
 
-  // Во вложенные сценарии нельзя выбрать сам этот сценарий.
   const nestable = scenarios.filter((s) => s.id !== draft.id);
 
   return (

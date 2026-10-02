@@ -1,11 +1,11 @@
-// Локализация интерфейса и сообщений main-процесса. Русский словарь — эталон: в английском обязаны быть те же ключи.
-// Подстановки — `{name}`. Текущий язык общий для модуля: main выставляет его из настроек, renderer — при их загрузке.
+// Russian is the reference dictionary; English must have the same keys. Placeholders are `{name}`.
+// The current language is module-wide: main sets it from settings, the renderer when settings load.
 
 export type Lang = "ru" | "en";
 export const LANGS: readonly Lang[] = ["ru", "en"];
 
 const ru = {
-  // Общее
+  // Common
   "common.save": "Сохранить",
   "common.cancel": "Отмена",
   "common.close": "Закрыть",
@@ -16,7 +16,7 @@ const ru = {
   "common.browse": "Обзор…",
   "common.reset": "Сбросить",
 
-  // Верхняя панель
+  // Top bar
   "top.devices": "Устройств:",
   "top.selected": "Выбрано:",
   "top.selectAll": "Выбрать все",
@@ -28,19 +28,19 @@ const ru = {
   "empty.title": "Нет подключённых устройств",
   "empty.text": "Подключите телефон по USB и включите «Отладку по USB» в настройках разработчика.",
 
-  // Боковая панель
+  // Sidebar
   "tab.actions": "Действия",
   "tab.scenarios": "Сценарии",
   "tab.proxy": "Прокси",
   "targets.selected": "Применяется к выбранным: {n}",
   "targets.all": "Применяется ко всем: {n}",
 
-  // Журнал
+  // Log
   "log.title": "Журнал",
   "log.clear": "очистить",
   "log.empty": "Здесь будут результаты операций.",
 
-  // Кнопки устройства
+  // Device keys
   "key.back": "Назад",
   "key.home": "Домой",
   "key.recents": "Недавние",
@@ -50,7 +50,7 @@ const ru = {
   "keyShort.volume_up": "Громк. +",
   "keyShort.volume_down": "Громк. −",
 
-  // Плитка устройства
+  // Device tile
   "tile.select": "Выбрать устройство",
   "tile.recording": "Идёт запись действий",
   "tile.run": "{name}: шаг {step}/{count}, повтор {iteration}",
@@ -63,7 +63,7 @@ const ru = {
   "tile.reconnect": "Переподключить",
   "tile.mirrorFailed": "Не удалось запустить трансляцию",
 
-  // Действия
+  // Actions
   "actions.keys": "Кнопки",
   "actions.text": "Ввод текста",
   "actions.textPlaceholder": "Текст в активное поле",
@@ -84,7 +84,7 @@ const ru = {
   "actions.run": "Выполнить",
   "actions.running": "Выполняется…",
 
-  // Прокси
+  // Proxy
   "proxy.onDevices": "На устройствах",
   "proxy.hint":
     "Прокси раздаются по кругу: сначала CyberYozh, затем из файла. Используется системный HTTP-прокси Android ({setting}) — авторизация и SOCKS им не поддерживаются.",
@@ -105,7 +105,7 @@ const ru = {
   "proxy.noToken": "API-ключ CyberYozh не задан.",
   "proxy.openSettings": "Открыть настройки",
 
-  // Сценарии
+  // Scenarios
   "scen.recording": "Запись действий",
   "scen.events": "событий: {n}",
   "scen.recHint": "Действуйте прямо на телефоне или через его плитку в Evelin.",
@@ -137,7 +137,7 @@ const ru = {
   "run.failed": "ошибка",
   "run.stopped": "остановлен",
 
-  // Редактор сценария
+  // Scenario editor
   "editor.closeConfirm": "Закрыть без сохранения?",
   "editor.name": "Название сценария",
   "editor.repeat": "Повторов",
@@ -159,7 +159,7 @@ const ru = {
   "editor.noRandom": "0 — без случайности",
   "editor.pickScenario": "— выберите сценарий —",
 
-  // Шаги
+  // Steps
   "step.tap": "Нажатие",
   "step.swipe": "Свайп",
   "step.gesture": "Жест",
@@ -182,7 +182,7 @@ const ru = {
   "scenario.untitled": "Без названия",
   "scenario.recorded": "Запись {stamp} · {device}",
 
-  // Валидация сценариев
+  // Scenario validation
   "val.number": "{what}: ожидалось число",
   "val.string": "{what}: ожидалась строка",
   "val.tooLong": "{what}: слишком длинная строка",
@@ -211,7 +211,7 @@ const ru = {
   "field.repeat": "Повторы",
   "field.pause": "Пауза между повторами",
 
-  // Ошибки main-процесса
+  // Main process errors
   "err.untrusted": "Недоверенный отправитель",
   "err.deviceList": "Ожидался список устройств",
   "err.unknownDevice": "Неизвестное устройство",
@@ -255,7 +255,7 @@ const ru = {
   "err.badSettings": "Некорректные настройки: {what}",
   "err.badUrl": "Адрес должен начинаться с http:// или https://",
 
-  // Диалоги
+  // Dialogs
   "dialog.pickApk": "Выберите APK",
   "dialog.screenshotDir": "Папка для скриншотов",
   "dialog.proxyFile": "Файл с прокси (proxies.txt)",
@@ -263,7 +263,7 @@ const ru = {
   "dialog.importScenarios": "Импорт сценариев",
   "dialog.pickAdb": "Путь к adb",
 
-  // Настройки
+  // Settings
   "set.title": "Настройки",
   "set.saved": "Сохранено",
   "set.general": "Общие",
@@ -295,6 +295,39 @@ const ru = {
   "set.version": "Версия {version}",
   "set.dataDir": "Папка с данными",
   "set.openDataDir": "Открыть",
+
+  // Updates
+  "upd.check": "Проверить обновления",
+  "upd.checking": "Проверка обновлений…",
+  "upd.latest": "Установлена последняя версия",
+  "upd.clickToCheck": "Нажмите, чтобы проверить снова",
+  "upd.checkFailed": "Не удалось проверить обновления: {error}",
+  "upd.downloadFailed": "Не удалось скачать обновление: {error}",
+  "upd.available": "Доступна версия {version}",
+  "upd.openRelease": "Открыть страницу релиза",
+  "upd.update": "Обновить до {version}",
+  "upd.updateHint": "Скачать и установить",
+  "upd.downloading": "Установка обновления… {percent}%",
+  "upd.restart": "Перезапустить и обновить до {version}",
+  "upd.restartHint": "Приложение перезапустится",
+  "upd.title": "Обновление",
+  "upd.offer": "Доступна новая версия Evelin {version}",
+  "upd.offerInstall": "Установлена версия {current}. Скачать и установить обновление?",
+  "upd.offerManual": "Установлена версия {current}. Эту копию нельзя обновить автоматически — скачайте новую версию со страницы релиза.",
+  "upd.install": "Установить",
+  "upd.later": "Позже",
+  "upd.openDownload": "Открыть страницу загрузки",
+  "upd.ready": "Обновление {version} загружено",
+  "upd.readyDetail": "Перезапустить Evelin сейчас? Если выбрать «Позже», обновление установится при следующем выходе из приложения.",
+  "upd.restartNow": "Перезапустить",
+  "upd.notReady": "Обновление ещё не загружено",
+  "upd.errNoReleases": "на GitHub нет опубликованных релизов",
+  "upd.errStatus": "GitHub ответил {status}",
+  "upd.errBadResponse": "некорректный ответ GitHub",
+  "upd.errEmpty": "пустой файл обновления",
+  "upd.errInterrupted": "соединение оборвалось",
+  "upd.errChecksum": "контрольная сумма не совпадает",
+  "upd.errNoApp": "в архиве нет приложения",
 } as const;
 
 export type MessageKey = keyof typeof ru;
@@ -575,6 +608,39 @@ const en: Record<MessageKey, string> = {
   "set.version": "Version {version}",
   "set.dataDir": "Data folder",
   "set.openDataDir": "Open",
+
+  // Updates
+  "upd.check": "Check for updates",
+  "upd.checking": "Checking for updates…",
+  "upd.latest": "You're on the latest version",
+  "upd.clickToCheck": "Click to check again",
+  "upd.checkFailed": "Couldn't check for updates: {error}",
+  "upd.downloadFailed": "Couldn't download the update: {error}",
+  "upd.available": "Version {version} available",
+  "upd.openRelease": "Open the release page",
+  "upd.update": "Update to {version}",
+  "upd.updateHint": "Download and install",
+  "upd.downloading": "Downloading update… {percent}%",
+  "upd.restart": "Restart to update to {version}",
+  "upd.restartHint": "The app will restart",
+  "upd.title": "Update",
+  "upd.offer": "Evelin {version} is available",
+  "upd.offerInstall": "You have version {current}. Download and install the update?",
+  "upd.offerManual": "You have version {current}. This copy can't update itself — download the new version from the release page.",
+  "upd.install": "Install",
+  "upd.later": "Later",
+  "upd.openDownload": "Open download page",
+  "upd.ready": "Update {version} downloaded",
+  "upd.readyDetail": "Restart Evelin now? If you choose Later, the update is installed the next time you quit.",
+  "upd.restartNow": "Restart",
+  "upd.notReady": "The update hasn't been downloaded yet",
+  "upd.errNoReleases": "no published releases on GitHub",
+  "upd.errStatus": "GitHub responded with {status}",
+  "upd.errBadResponse": "unexpected response from GitHub",
+  "upd.errEmpty": "empty update file",
+  "upd.errInterrupted": "connection interrupted",
+  "upd.errChecksum": "checksum mismatch",
+  "upd.errNoApp": "no app in the archive",
 };
 
 const DICTS: Record<Lang, Record<MessageKey, string>> = { ru, en };
@@ -593,12 +659,11 @@ export function isLang(v: unknown): v is Lang {
   return LANGS.includes(v as Lang);
 }
 
-/** Язык по локали ОС: русский для ru/uk/be/kk, иначе английский. */
+/** Russian for ru/uk/be/kk locales, English otherwise. */
 export function langForLocale(locale: string): Lang {
   return /^(ru|uk|be|kk)\b/i.test(locale) ? "ru" : "en";
 }
 
-/** Локаль для форматирования дат и чисел. */
 export function locale(): string {
   return current === "ru" ? "ru-RU" : "en-US";
 }
