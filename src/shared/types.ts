@@ -139,6 +139,8 @@ export interface StreamSettings {
 
 export interface AppSettings {
   language: Lang;
+  /** False until the user picks a language on first run. */
+  languageChosen: boolean;
   /** Ask before reboot and delete. */
   confirmDanger: boolean;
   stream: StreamSettings;

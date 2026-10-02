@@ -1,6 +1,7 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { App } from "./App";
+import { LanguageGate } from "./components/LanguagePicker";
 import { SettingsProvider } from "./settings";
 import "./styles.css";
 
@@ -9,7 +10,9 @@ void window.farm.settings.get().then((settings) => {
   createRoot(document.getElementById("root")!).render(
     <StrictMode>
       <SettingsProvider initial={settings}>
-        <App />
+        <LanguageGate>
+          <App />
+        </LanguageGate>
       </SettingsProvider>
     </StrictMode>,
   );

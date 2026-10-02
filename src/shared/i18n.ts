@@ -268,6 +268,8 @@ const ru = {
   "set.saved": "Сохранено",
   "set.general": "Общие",
   "set.language": "Язык интерфейса",
+  "lang.pick": "Выберите язык",
+  "lang.pickHint": "Его можно изменить позже в настройках.",
   "set.confirmDanger": "Спрашивать подтверждение перед перезагрузкой и удалением",
   "set.stream": "Трансляция экрана",
   "set.streamHint": "Меньше разрешение и битрейт — больше устройств тянет одна машина. Применяется сразу: плитки переподключатся.",
@@ -581,6 +583,8 @@ const en: Record<MessageKey, string> = {
   "set.saved": "Saved",
   "set.general": "General",
   "set.language": "Interface language",
+  "lang.pick": "Choose your language",
+  "lang.pickHint": "You can change it later in Settings.",
   "set.confirmDanger": "Ask for confirmation before rebooting and deleting",
   "set.stream": "Screen streaming",
   "set.streamHint": "Lower resolution and bitrate let one machine handle more devices. Applies immediately: tiles reconnect.",
@@ -669,7 +673,12 @@ export function locale(): string {
 }
 
 export function t(key: MessageKey, vars?: Record<string, string | number>): string {
-  const text = DICTS[current][key] ?? ru[key];
+  return tIn(current, key, vars);
+}
+
+/** `t` in a specific language regardless of the current one. */
+export function tIn(lang: Lang, key: MessageKey, vars?: Record<string, string | number>): string {
+  const text = DICTS[lang][key] ?? ru[key];
   return vars ? text.replace(/\{(\w+)\}/g, (m, name: string) => (name in vars ? String(vars[name]) : m)) : text;
 }
 

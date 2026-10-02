@@ -10,6 +10,7 @@ export const DEFAULT_STREAM: StreamSettings = { maxSize: 720, bitRate: 2, maxFps
 export function defaultSettings(language: Lang): AppSettings {
   return {
     language,
+    languageChosen: false,
     confirmDanger: true,
     stream: { ...DEFAULT_STREAM },
     proxyTestUrl: DEFAULT_TEST_URL,
@@ -56,6 +57,7 @@ export function mergeSettings(base: AppSettings, patch: unknown): AppSettings {
     if (!isLang(p.language)) bad("language");
     next.language = p.language;
   }
+  if (p.languageChosen !== undefined) next.languageChosen = bool(p.languageChosen, "languageChosen");
   if (p.confirmDanger !== undefined) next.confirmDanger = bool(p.confirmDanger, "confirmDanger");
   if (p.stream !== undefined) {
     if (!p.stream || typeof p.stream !== "object") bad("stream");

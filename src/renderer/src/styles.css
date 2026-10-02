@@ -905,6 +905,31 @@ select.input {
   max-height: 100%;
 }
 
+.modal.lang-modal {
+  width: min(380px, 100%);
+  height: auto;
+  padding: 24px;
+  gap: 4px;
+  text-align: center;
+}
+
+.lang-title {
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.lang-options {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 16px 0 4px;
+}
+
+.lang-options .btn {
+  padding: 10px;
+  font-size: 15px;
+}
+
 .modal-title {
   margin: 0;
   font-size: 16px;

@@ -17,7 +17,10 @@ export class SettingsStore {
   async load(defaultLang: Lang): Promise<void> {
     this.#settings = defaultSettings(defaultLang);
     try {
-      this.#settings = loadSettings(JSON.parse(await readFile(this.path, "utf8")), this.#settings);
+      const raw: unknown = JSON.parse(await readFile(this.path, "utf8"));
+      this.#settings = loadSettings(raw, this.#settings);
+      // Settings saved before the first-run picker existed: the user already lives with their language.
+      if (raw && typeof raw === "object" && !("languageChosen" in raw)) this.#settings.languageChosen = true;
     } catch (e) {
       if ((e as NodeJS.ErrnoException).code !== "ENOENT") console.warn("[settings] не удалось прочитать настройки:", e);
     }
