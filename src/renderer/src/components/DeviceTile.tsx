@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type PointerEvent, type WheelEvent } from 
 import { BitmapVideoFrameRenderer, WebCodecsVideoDecoder } from "@yume-chan/scrcpy-decoder-webcodecs";
 import { ScrcpyVideoCodecId, type ScrcpyMediaStreamPacket } from "@yume-chan/scrcpy";
 import type { DeviceInfo, NavKey, RunStatus } from "@shared/types";
+import { useT } from "../settings";
 import { route } from "../video";
 
 interface Props {
@@ -11,6 +12,8 @@ interface Props {
   recording: boolean;
   /** Выполняющийся на устройстве сценарий. */
   run?: RunStatus;
+  /** Меняется вместе с настройками трансляции — тогда поток перезапускается. */
+  streamKey: string;
   /** На какие устройства отправлять ввод с этой плитки (с учётом режима трансляции). */
   targets: () => string[];
   onToggleSelect: () => void;
@@ -19,7 +22,8 @@ interface Props {
 
 type Status = { kind: "connecting" } | { kind: "live" } | { kind: "error"; message: string };
 
-export function DeviceTile({ device, selected, focused, recording, run, targets, onToggleSelect, onToggleFocus }: Props) {
+export function DeviceTile({ device, selected, focused, recording, run, streamKey, targets, onToggleSelect, onToggleFocus }: Props) {
+  const t = useT();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [status, setStatus] = useState<Status>({ kind: "connecting" });
   const [attempt, setAttempt] = useState(0);
@@ -58,7 +62,7 @@ export function DeviceTile({ device, selected, focused, recording, run, targets,
     });
 
     void window.farm.mirror.start(device.serial).then((res) => {
-      if (!cancelled && !res.success) setStatus({ kind: "error", message: res.error ?? "Не удалось запустить трансляцию" });
+      if (!cancelled && !res.success) setStatus({ kind: "error", message: res.error ?? t("tile.mirrorFailed") });
     });
 
     return () => {
@@ -68,7 +72,7 @@ export function DeviceTile({ device, selected, focused, recording, run, targets,
       writer.releaseLock();
       decoder.dispose();
     };
-  }, [device.serial, online, attempt]);
+  }, [device.serial, online, attempt, streamKey]);
 
   // --- Ввод ---
 
@@ -108,7 +112,7 @@ export function DeviceTile({ device, selected, focused, recording, run, targets,
   return (
     <div className={`tile${selected ? " selected" : ""}${focused ? " focused" : ""}${recording ? " recording" : ""}`}>
       <header className="tile-header">
-        <label className="tile-check" title="Выбрать устройство">
+        <label className="tile-check" title={t("tile.select")}>
           <input type="checkbox" checked={selected} onChange={onToggleSelect} />
         </label>
         <div className="tile-title" title={device.serial}>
@@ -119,21 +123,21 @@ export function DeviceTile({ device, selected, focused, recording, run, targets,
           </span>
         </div>
         {recording && (
-          <span className="badge badge-rec" title="Идёт запись действий">
+          <span className="badge badge-rec" title={t("tile.recording")}>
             ● rec
           </span>
         )}
         {run && (
-          <span className="badge badge-run" title={`${run.scenarioName}: шаг ${run.stepIndex + 1}/${run.stepCount}, повтор ${run.iteration}`}>
+          <span className="badge badge-run" title={t("tile.run", { name: run.scenarioName, step: run.stepIndex + 1, count: run.stepCount, iteration: run.iteration })}>
             ▶ {run.stepIndex + 1}/{run.stepCount}
           </span>
         )}
         {device.proxy ? (
-          <span className="badge badge-proxy" title={`Прокси: ${device.proxy}`}>
+          <span className="badge badge-proxy" title={t("tile.proxy", { proxy: device.proxy })}>
             proxy
           </span>
         ) : null}
-        <button className="icon-btn" onClick={onToggleFocus} title={focused ? "Уменьшить" : "Увеличить"}>
+        <button className="icon-btn" onClick={onToggleFocus} title={focused ? t("tile.zoomOut") : t("tile.zoomIn")}>
           {focused ? "⤡" : "⤢"}
         </button>
       </header>
@@ -155,31 +159,31 @@ export function DeviceTile({ device, selected, focused, recording, run, targets,
         ) : null}
         {!online && (
           <div className="screen-overlay">
-            {device.state === "unauthorized" ? "Подтвердите отладку по USB на телефоне" : "Устройство офлайн"}
+            {device.state === "unauthorized" ? t("tile.unauthorized") : t("tile.offline")}
           </div>
         )}
-        {online && status.kind === "connecting" && <div className="screen-overlay">Подключение…</div>}
+        {online && status.kind === "connecting" && <div className="screen-overlay">{t("tile.connecting")}</div>}
         {online && status.kind === "error" && (
           <div className="screen-overlay error">
             <span>{status.message}</span>
             <button className="btn" onClick={() => setAttempt((n) => n + 1)}>
-              Переподключить
+              {t("tile.reconnect")}
             </button>
           </div>
         )}
       </div>
 
       <footer className="tile-nav">
-        <button className="icon-btn" onClick={() => key("back")} title="Назад">
+        <button className="icon-btn" onClick={() => key("back")} title={t("key.back")}>
           ◁
         </button>
-        <button className="icon-btn" onClick={() => key("home")} title="Домой">
+        <button className="icon-btn" onClick={() => key("home")} title={t("key.home")}>
           ○
         </button>
-        <button className="icon-btn" onClick={() => key("recents")} title="Недавние">
+        <button className="icon-btn" onClick={() => key("recents")} title={t("key.recents")}>
           ▢
         </button>
-        <button className="icon-btn" onClick={() => key("power")} title="Питание">
+        <button className="icon-btn" onClick={() => key("power")} title={t("key.power")}>
           ⏻
         </button>
       </footer>

@@ -1,5 +1,7 @@
 // Типы, общие для main, preload и renderer.
 
+import type { Lang } from "./i18n";
+
 export type DeviceState = "device" | "unauthorized" | "offline";
 
 export interface DeviceInfo {
@@ -136,7 +138,45 @@ export interface RecordingStatus {
   physicalError?: string;
 }
 
+// --- Настройки ---
+
+export interface StreamSettings {
+  /** Длинная сторона видео, px. */
+  maxSize: number;
+  /** Мбит/с. */
+  bitRate: number;
+  maxFps: number;
+  /** Держать экран включённым, пока идёт трансляция. */
+  stayAwake: boolean;
+}
+
+export interface AppSettings {
+  language: Lang;
+  /** Спрашивать подтверждение перед перезагрузкой и удалением. */
+  confirmDanger: boolean;
+  stream: StreamSettings;
+  /** Адрес, который запрашивается curl-ом с устройства при проверке IP. */
+  proxyTestUrl: string;
+  /** Период автообновления списка CyberYozh, минуты; 0 — выключено. */
+  cyberyozhRefreshMin: number;
+  /** Свой путь к adb; пусто — искать автоматически. */
+  adbPath: string;
+}
+
+export interface AppInfo {
+  version: string;
+  dataDir: string;
+}
+
 export interface FarmApi {
+  settings: {
+    get(): Promise<AppSettings>;
+    update(patch: Partial<AppSettings>): Promise<AppSettings>;
+    /** Диалог выбора файла adb; undefined — отменено. */
+    pickAdbPath(): Promise<string | undefined>;
+    info(): Promise<AppInfo>;
+    openDataDir(): Promise<void>;
+  };
   devices: {
     list(): Promise<DeviceInfo[]>;
     refresh(serial: string): Promise<DeviceInfo | undefined>;
@@ -173,6 +213,8 @@ export interface FarmApi {
     assign(serials: string[]): Promise<DeviceResult[]>;
     clear(serials: string[]): Promise<DeviceResult[]>;
     test(serials: string[]): Promise<DeviceResult[]>;
+    /** Список прокси изменился в main (например, автообновление CyberYozh). */
+    onChange(listener: (state: ProxyState) => void): () => void;
   };
   scenarios: {
     list(): Promise<Scenario[]>;

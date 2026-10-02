@@ -3,6 +3,7 @@
 
 import { performance } from "node:perf_hooks";
 import type { NavKey, RecordingStatus, Scenario, StepBody, TouchEvent } from "@shared/types";
+import { locale, t } from "@shared/i18n";
 import { newScenario } from "@shared/scenario";
 import type { DeviceManager } from "./devices";
 import { eventsToSteps, findTouchscreen, GeteventParser, type RecordedEvent } from "./recording";
@@ -48,7 +49,7 @@ export class Recorder {
   }
 
   async start(serial: string): Promise<RecordingStatus> {
-    if (this.#active) throw new Error(`Уже идёт запись на ${this.#active.status.serial}`);
+    if (this.#active) throw new Error(t("err.alreadyRecording", { serial: this.#active.status.serial }));
     const active: Active = { status: { serial, startedAt: Date.now(), events: 0, physical: false }, events: [], t0: performance.now() };
     this.#active = active;
     try {
@@ -60,7 +61,7 @@ export class Recorder {
     // Запись могли отменить, пока подключались к сенсору.
     if (this.#active !== active) {
       active.stopPhysical?.();
-      throw new Error("Запись отменена");
+      throw new Error(t("err.recordingCancelled"));
     }
     this.#notify();
     return { ...active.status };
@@ -72,7 +73,7 @@ export class Recorder {
       this.devices.shell(serial, "dumpsys input"),
     ]);
     const screen = findTouchscreen(pl);
-    if (!screen) throw new Error("Сенсорный экран не найден в getevent");
+    if (!screen) throw new Error(t("err.noTouchscreen"));
     const rotation = Number(/SurfaceOrientation:\s*(\d)/.exec(input)?.[1] ?? 0);
 
     const parser = new GeteventParser(screen, rotation, (e) => this.#add(active, e));
@@ -134,8 +135,8 @@ export class Recorder {
     if (!active) return undefined;
     const steps = eventsToSteps(active.events);
     if (steps.length === 0) return undefined;
-    const stamp = new Date(active.status.startedAt).toLocaleString("ru-RU", { dateStyle: "short", timeStyle: "short" });
-    return { ...newScenario(`Запись ${stamp} · ${deviceName}`), steps };
+    const stamp = new Date(active.status.startedAt).toLocaleString(locale(), { dateStyle: "short", timeStyle: "short" });
+    return { ...newScenario(t("scenario.recorded", { stamp, device: deviceName })), steps };
   }
 
   cancel(): void {

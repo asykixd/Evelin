@@ -4,16 +4,19 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { app, BrowserWindow, dialog, ipcMain, session, shell, type IpcMainEvent, type IpcMainInvokeEvent } from "electron";
 import { ReadableStream } from "@yume-chan/stream-extra";
+import { langForLocale, t } from "@shared/i18n";
 import { isInvalidScenario, NAV_KEYS, PACKAGE_RE } from "@shared/scenario";
-import type { DeviceResult, NavKey, TouchEvent } from "@shared/types";
+import type { DeviceResult, NavKey, ProxyState, TouchEvent } from "@shared/types";
 import { DeviceManager, shellCommand } from "./devices";
 import { MirrorManager } from "./mirror";
 import { isValidHostPort, ProxyStore } from "./proxies";
 import { Recorder } from "./recorder";
 import { ScenarioRunner } from "./runner";
 import { ScenarioStore } from "./scenarios";
+import { SettingsStore } from "./settings";
 
-const devices = new DeviceManager();
+const settings = new SettingsStore(join(app.getPath("userData"), "settings.json"));
+const devices = new DeviceManager(() => settings.get().adbPath);
 const proxies = new ProxyStore(join(app.getPath("userData"), "proxy-settings.json"));
 const scenarios = new ScenarioStore(join(app.getPath("userData"), "scenarios.json"));
 const recorder = new Recorder(devices);
@@ -27,23 +30,45 @@ const mirror = new MirrorManager(
     size: (serial, w, h) => win?.webContents.send("mirror:size", serial, w, h),
     stopped: (serial, reason) => win?.webContents.send("mirror:stopped", serial, reason),
   },
+  () => settings.get().stream,
 );
+
+/** Сообщает renderer об изменившемся списке прокси и возвращает его. */
+function proxyChanged(): ProxyState {
+  const state = proxies.state();
+  win?.webContents.send("proxy:changed", state);
+  return state;
+}
+
+// Периодическое обновление списка CyberYozh (период — в настройках).
+let yozhTimer: NodeJS.Timeout | undefined;
+
+function scheduleYozhRefresh(): void {
+  clearInterval(yozhTimer);
+  yozhTimer = undefined;
+  const minutes = settings.get().cyberyozhRefreshMin;
+  if (minutes <= 0) return;
+  yozhTimer = setInterval(() => {
+    if (!proxies.state().hasCyberyozhToken) return;
+    proxies.refreshCyberyozh().then(proxyChanged, (e) => console.warn("[proxy] автообновление CyberYozh:", e));
+  }, minutes * 60_000);
+}
 
 // --- Прокси на устройстве: общие для кнопок в интерфейсе и для шагов сценариев ---
 
 async function assignNextProxy(serial: string): Promise<string> {
   const p = proxies.next();
-  if (!p) throw new Error("Нет доступных прокси");
-  if (!/^https?$/.test(p.type)) throw new Error(`Системный прокси Android поддерживает только HTTP, а не ${p.type}`);
-  if (!isValidHostPort(p.host, p.port)) throw new Error("Некорректный адрес прокси");
+  if (!p) throw new Error(t("err.noProxies"));
+  if (!/^https?$/.test(p.type)) throw new Error(t("err.proxyHttpOnly", { type: p.type }));
+  if (!isValidHostPort(p.host, p.port)) throw new Error(t("err.proxyBadAddress"));
   const hostPort = `${p.host}:${p.port}`;
-  if (!(await devices.setProxy(serial, hostPort))) throw new Error("Настройка не применилась");
+  if (!(await devices.setProxy(serial, hostPort))) throw new Error(t("err.proxyNotApplied"));
   void devices.refresh(serial);
-  return p.login ? `${hostPort} (внимание: логин/пароль системным прокси не поддерживаются)` : hostPort;
+  return p.login ? t("err.proxyAuthWarning", { hostPort }) : hostPort;
 }
 
 async function clearProxy(serial: string): Promise<void> {
-  if (!(await devices.clearProxy(serial))) throw new Error("Прокси не сбросился");
+  if (!(await devices.clearProxy(serial))) throw new Error(t("err.proxyNotCleared"));
   void devices.refresh(serial);
 }
 
@@ -104,7 +129,7 @@ function isTrustedSender(e: IpcMainEvent | IpcMainInvokeEvent): boolean {
 
 function handle<A extends unknown[], R>(channel: string, fn: (...args: A) => Promise<R> | R): void {
   ipcMain.handle(channel, (e, ...args) => {
-    if (!isTrustedSender(e)) throw new Error("Недоверенный отправитель");
+    if (!isTrustedSender(e)) throw new Error(t("err.untrusted"));
     return fn(...(args as A));
   });
 }
@@ -121,17 +146,17 @@ function on<A extends unknown[]>(channel: string, fn: (...args: A) => unknown): 
 }
 
 function serials(value: unknown): string[] {
-  if (!Array.isArray(value)) throw new Error("Ожидался список устройств");
+  if (!Array.isArray(value)) throw new Error(t("err.deviceList"));
   return [...new Set(value.filter((s): s is string => typeof s === "string" && devices.has(s)))];
 }
 
 function serial(value: unknown): string {
-  if (typeof value !== "string" || !devices.has(value)) throw new Error("Неизвестное устройство");
+  if (typeof value !== "string" || !devices.has(value)) throw new Error(t("err.unknownDevice"));
   return value;
 }
 
 function finite(value: unknown): number {
-  if (typeof value !== "number" || !Number.isFinite(value)) throw new Error("Ожидалось число");
+  if (typeof value !== "number" || !Number.isFinite(value)) throw new Error(t("err.number"));
   return value;
 }
 
@@ -147,6 +172,20 @@ function streamOf(bytes: Uint8Array): ReadableStream<Uint8Array> {
 }
 
 function registerIpc(): void {
+  // Настройки
+  handle("settings:get", () => settings.get());
+  handle("settings:update", (patch: unknown) => settings.update(patch));
+  handle("settings:pickAdb", async () => {
+    if (!win) return undefined;
+    const filters = process.platform === "win32" ? [{ name: "adb", extensions: ["exe"] }] : [];
+    const pick = await dialog.showOpenDialog(win, { title: t("dialog.pickAdb"), filters, properties: ["openFile"] });
+    return pick.canceled ? undefined : pick.filePaths[0];
+  });
+  handle("settings:info", () => ({ version: app.getVersion(), dataDir: app.getPath("userData") }));
+  handle("settings:openDataDir", async () => {
+    await shell.openPath(app.getPath("userData"));
+  });
+
   // Устройства
   handle("devices:list", () => devices.list());
   handle("devices:refresh", (s: unknown) => devices.refresh(serial(s)));
@@ -188,25 +227,25 @@ function registerIpc(): void {
 
   // Пакетные операции
   handle("batch:shell", (list: unknown, command: unknown) => {
-    if (typeof command !== "string" || !command.trim()) throw new Error("Пустая команда");
+    if (typeof command !== "string" || !command.trim()) throw new Error(t("err.emptyCommand"));
     // Команда намеренно выполняется как есть: это консоль для оператора фермы, она исполняется на телефоне, не на ПК.
     return devices.forEach(serials(list), (s) => devices.shell(s, command));
   });
 
   handle("batch:launchApp", (list: unknown, pkg: unknown) => {
-    if (typeof pkg !== "string" || !PACKAGE_RE.test(pkg)) throw new Error("Некорректное имя пакета");
+    if (typeof pkg !== "string" || !PACKAGE_RE.test(pkg)) throw new Error(t("err.badPackage"));
     const targets = serials(list);
     recorder.captureStep(targets, { type: "launchApp", package: pkg });
     return devices.forEach(targets, async (s) => {
       const out = await devices.shell(s, shellCommand("monkey", "-p", pkg, "-c", "android.intent.category.LAUNCHER", "1"));
-      if (/No activities found|monkey aborted/i.test(out)) throw new Error(`Пакет ${pkg} не найден или не запускается`);
+      if (/No activities found|monkey aborted/i.test(out)) throw new Error(t("err.packageNotFound", { pkg }));
     });
   });
 
   handle("batch:installApk", async (list: unknown) => {
     const targets = serials(list);
     if (!win) return [];
-    const pick = await dialog.showOpenDialog(win, { title: "Выберите APK", filters: [{ name: "APK", extensions: ["apk"] }], properties: ["openFile"] });
+    const pick = await dialog.showOpenDialog(win, { title: t("dialog.pickApk"), filters: [{ name: "APK", extensions: ["apk"] }], properties: ["openFile"] });
     const file = pick.filePaths[0];
     if (pick.canceled || !file) return [];
     const bytes = new Uint8Array(await readFile(file));
@@ -221,7 +260,7 @@ function registerIpc(): void {
       }
       try {
         const out = await devices.shell(s, shellCommand("pm", "install", "-r", "-g", remote));
-        if (!out.includes("Success")) throw new Error(out.trim() || "Установка не удалась");
+        if (!out.includes("Success")) throw new Error(out.trim() || t("err.installFailed"));
         return out.trim();
       } finally {
         await devices.shell(s, shellCommand("rm", "-f", remote)).catch(() => {});
@@ -232,7 +271,7 @@ function registerIpc(): void {
   handle("batch:screenshot", async (list: unknown) => {
     const targets = serials(list);
     if (!win) return [];
-    const pick = await dialog.showOpenDialog(win, { title: "Папка для скриншотов", properties: ["openDirectory", "createDirectory"] });
+    const pick = await dialog.showOpenDialog(win, { title: t("dialog.screenshotDir"), properties: ["openDirectory", "createDirectory"] });
     const dir = pick.filePaths[0];
     if (pick.canceled || !dir) return [];
     const stamp = new Date().toISOString().replace(/[:.]/g, "-");
@@ -254,27 +293,27 @@ function registerIpc(): void {
   handle("proxy:state", () => proxies.state());
   handle("proxy:importFile", async () => {
     if (!win) return proxies.state();
-    const pick = await dialog.showOpenDialog(win, { title: "Файл с прокси (proxies.txt)", filters: [{ name: "Text", extensions: ["txt"] }], properties: ["openFile"] });
+    const pick = await dialog.showOpenDialog(win, { title: t("dialog.proxyFile"), filters: [{ name: "Text", extensions: ["txt"] }], properties: ["openFile"] });
     const file = pick.filePaths[0];
     if (!pick.canceled && file) await proxies.importText(await readFile(file, "utf8"));
-    return proxies.state();
+    return proxyChanged();
   });
   handle("proxy:clearFile", async () => {
     await proxies.clearFileProxies();
-    return proxies.state();
+    return proxyChanged();
   });
   handle("proxy:setToken", async (token: unknown) => {
-    if (typeof token !== "string" || token.length > 512) throw new Error("Некорректный токен");
+    if (typeof token !== "string" || token.length > 512) throw new Error(t("err.badToken"));
     await proxies.setCyberyozhToken(token);
     await proxies.refreshCyberyozh().catch(() => {});
-    return proxies.state();
+    return proxyChanged();
   });
   handle("proxy:refreshCyberyozh", async () => {
     try {
       await proxies.refreshCyberyozh();
-      return { state: proxies.state() };
+      return { state: proxyChanged() };
     } catch (e) {
-      return { state: proxies.state(), error: e instanceof Error ? e.message : String(e) };
+      return { state: proxyChanged(), error: e instanceof Error ? e.message : String(e) };
     }
   });
 
@@ -283,19 +322,19 @@ function registerIpc(): void {
   handle("proxy:test", (list: unknown): Promise<DeviceResult[]> =>
     devices.forEach(serials(list), async (s) => {
       const proxy = await devices.getProxy(s);
-      if (!(await devices.shell(s, "command -v curl")).trim()) throw new Error("curl не установлен на устройстве");
+      if (!(await devices.shell(s, "command -v curl")).trim()) throw new Error(t("err.noCurl"));
       const args = ["curl", "-s", "-m", "15"];
       if (proxy) args.push("-x", proxy);
-      args.push("http://httpbin.org/ip");
+      args.push(settings.get().proxyTestUrl);
       const out = (await devices.shell(s, shellCommand(...args))).trim();
-      if (!out) throw new Error("Нет ответа");
-      return proxy ? `через ${proxy}: ${out}` : `без прокси: ${out}`;
+      if (!out) throw new Error(t("err.noResponse"));
+      return proxy ? t("err.viaProxy", { proxy, out }) : t("err.noProxy", { out });
     }),
   );
 
   // Сценарии
   const scenarioError = (e: unknown) => {
-    if (isInvalidScenario(e)) return new Error(`Некорректный сценарий: ${e.message}`);
+    if (isInvalidScenario(e)) return new Error(t("val.invalid", { message: e.message }));
     return e;
   };
   handle("scenarios:list", () => scenarios.list());
@@ -329,29 +368,29 @@ function registerIpc(): void {
           }
     }
     const safeName = scenario.name.replace(/[^\p{L}\p{N} _-]/gu, "").trim() || "scenario";
-    const pick = await dialog.showSaveDialog(win, { title: "Экспорт сценария", defaultPath: `${safeName}.evelin.json`, filters: [{ name: "Evelin", extensions: ["json"] }] });
+    const pick = await dialog.showSaveDialog(win, { title: t("dialog.exportScenario"), defaultPath: `${safeName}.evelin.json`, filters: [{ name: "Evelin", extensions: ["json"] }] });
     if (pick.canceled || !pick.filePath) return false;
     await writeFile(pick.filePath, JSON.stringify([...bundle.values()], null, 2));
     return true;
   });
   handle("scenarios:import", async () => {
     if (!win) return { scenarios: scenarios.list(), imported: 0, withShell: 0 };
-    const pick = await dialog.showOpenDialog(win, { title: "Импорт сценариев", filters: [{ name: "Evelin", extensions: ["json"] }], properties: ["openFile"] });
+    const pick = await dialog.showOpenDialog(win, { title: t("dialog.importScenarios"), filters: [{ name: "Evelin", extensions: ["json"] }], properties: ["openFile"] });
     const file = pick.filePaths[0];
     if (pick.canceled || !file) return { scenarios: scenarios.list(), imported: 0, withShell: 0 };
     let imported;
     try {
       imported = await scenarios.import(JSON.parse(await readFile(file, "utf8")));
     } catch (e) {
-      throw scenarioError(e instanceof SyntaxError ? new Error("файл не является JSON") : e);
+      throw scenarioError(e instanceof SyntaxError ? new Error(t("val.notJson")) : e);
     }
     const withShell = imported.filter((s) => s.steps.some((st) => st.type === "shell")).length;
     return { scenarios: scenarios.list(), imported: imported.length, withShell };
   });
   handle("scenarios:run", (id: unknown, list: unknown) => {
-    if (typeof id !== "string") throw new Error("Сценарий не найден");
+    if (typeof id !== "string") throw new Error(t("err.scenarioNotFound"));
     const targets = serials(list);
-    if (recorder.serial && targets.includes(recorder.serial)) throw new Error("На этом устройстве идёт запись — сначала остановите её");
+    if (recorder.serial && targets.includes(recorder.serial)) throw new Error(t("err.recordingOnDevice"));
     runner.start(id, targets);
   });
   handle("scenarios:stop", (list: unknown) => runner.stop(list === undefined ? undefined : (Array.isArray(list) ? list.filter((s) => typeof s === "string") : [])));
@@ -360,7 +399,7 @@ function registerIpc(): void {
   // Запись
   handle("recorder:start", (s: unknown) => {
     const target = serial(s);
-    if (runner.isBusy(target)) throw new Error("На устройстве выполняется сценарий — сначала остановите его");
+    if (runner.isBusy(target)) throw new Error(t("err.runningOnDevice"));
     return recorder.start(target);
   });
   handle("recorder:stop", async () => {
@@ -384,7 +423,12 @@ app.whenReady().then(async () => {
   session.defaultSession.setPermissionRequestHandler((_wc, _perm, cb) => cb(false));
 
   registerIpc();
+  await settings.load(langForLocale(app.getLocale()));
   await Promise.all([proxies.load(), scenarios.load()]);
+  scheduleYozhRefresh();
+  settings.onChange((next, prev) => {
+    if (next.cyberyozhRefreshMin !== prev.cyberyozhRefreshMin) scheduleYozhRefresh();
+  });
 
   let known = new Set<string>();
   devices.onChange((list) => {
@@ -415,6 +459,7 @@ app.whenReady().then(async () => {
 });
 
 app.on("before-quit", () => {
+  clearInterval(yozhTimer);
   runner.stop();
   recorder.cancel();
   void mirror.stopAll();

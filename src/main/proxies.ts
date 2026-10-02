@@ -3,6 +3,7 @@
 import { readFile, writeFile, mkdir } from "node:fs/promises";
 import { dirname } from "node:path";
 import { safeStorage } from "electron";
+import { t } from "@shared/i18n";
 import type { Proxy, ProxyState } from "@shared/types";
 
 const CYBERYOZH_URL = "https://app.cyberyozh.com/api/v1/proxies/history/";
@@ -89,7 +90,7 @@ export class ProxyStore {
 
   async #save(): Promise<void> {
     await mkdir(dirname(this.settingsPath), { recursive: true });
-    if (!safeStorage.isEncryptionAvailable()) throw new Error("Шифрование ОС недоступно — настройки не сохранены");
+    if (!safeStorage.isEncryptionAvailable()) throw new Error(t("err.encryption"));
     const file: SettingsFile = { encrypted: safeStorage.encryptString(JSON.stringify(this.#settings)).toString("base64") };
     await writeFile(this.settingsPath, JSON.stringify(file), { mode: 0o600 });
   }
@@ -144,14 +145,14 @@ export class ProxyStore {
       headers: { accept: "application/json", "X-Api-Key": token },
       signal: AbortSignal.timeout(30_000),
     });
-    if (!res.ok) throw new Error(`CyberYozh ответил ${res.status}`);
+    if (!res.ok) throw new Error(t("err.yozhStatus", { status: res.status }));
     const data = (await res.json()) as unknown;
     const list = Array.isArray(data)
       ? data
       : data && typeof data === "object" && Array.isArray((data as { results?: unknown }).results)
         ? (data as { results: unknown[] }).results
         : undefined;
-    if (!list) throw new Error("Некорректный ответ от CyberYozh");
+    if (!list) throw new Error(t("err.yozhResponse"));
     this.#cyberyozh = (list as CyberyozhProxy[])
       .filter((p) => p && typeof p === "object" && p.system_status === "active")
       .map(fromCyberyozh)

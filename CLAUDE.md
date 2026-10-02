@@ -28,10 +28,11 @@ Requires `adb` on PATH. Renderer warnings/errors are forwarded to the terminal i
 - **Gotcha:** Tango's `subprocess.noneProtocol.spawn*` joins array args with spaces **without escaping**. Build device shell commands with `shellCommand(...)` from `src/main/devices.ts`.
 - Video: `MirrorManager` streams H.264 packets over IPC; `DeviceTile` decodes with `WebCodecsVideoDecoder` + `BitmapVideoFrameRenderer` (not WebGL — Chromium caps WebGL contexts at ~16).
 - Touch coordinates are normalized 0..1 everywhere (IPC, scenarios), scaled to video size in `mirror.ts`.
-- Scenarios: schema + validation in `src/shared/scenario.ts` (used for UI saves and file imports — keep it strict when adding step types; also update `STEP_LABELS`, `newStep`, `describeStep`, runner `#step`, and `StepParams` in the editor). `src/main/recording.ts` is pure (no ADB) so it can be tested in isolation.
+- Scenarios: schema + validation in `src/shared/scenario.ts` (used for UI saves and file imports — keep it strict when adding step types; also add `step.<type>` strings to both dictionaries in `src/shared/i18n.ts`, and update `newStep`, `describeStep`, runner `#step`, and `StepParams` in the editor). `src/main/recording.ts` is pure (no ADB) so it can be tested in isolation.
 - Main-process methods report failures as `DeviceResult { success, error }` rather than throwing across IPC where batch semantics apply.
 
 ## Conventions
 
-- UI strings, comments and errors are in Russian.
+- Comments are in Russian. User-facing strings (UI, errors from main, dialog titles) go through `t()` from `src/shared/i18n.ts`; add every new key to both the `ru` and `en` dictionaries (`en` is typed as `Record<MessageKey, string>`, so a missing key fails typecheck). Console logs stay in Russian, untranslated.
+- Settings: `AppSettings` in `src/shared/types.ts`, defaults + strict validation in `src/shared/settings.ts`, stored by `SettingsStore` (`userData/settings.json`, not secret). Renderer reads them through `useSettings()` / `useT()` from `src/renderer/src/settings.tsx`. The CyberYozh key stays in the encrypted `ProxyStore`, not in settings.
 - Secrets: `api_keys.json` / `proxies.txt` are gitignored; app secrets are stored encrypted with `safeStorage` in Electron `userData`.

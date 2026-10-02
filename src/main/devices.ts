@@ -5,6 +5,7 @@ import { existsSync } from "node:fs";
 import { promisify } from "node:util";
 import { Adb, AdbServerClient, escapeArg } from "@yume-chan/adb";
 import { AdbServerNodeTcpConnector } from "@yume-chan/adb-server-node-tcp";
+import { t } from "@shared/i18n";
 import type { DeviceInfo, DeviceResult, DeviceState } from "@shared/types";
 
 const execFileAsync = promisify(execFile);
@@ -26,6 +27,9 @@ export class DeviceManager {
   #devices = new Map<string, DeviceInfo>();
   #observer: AdbServerClient.DeviceObserver | undefined;
   #listeners = new Set<(devices: DeviceInfo[]) => void>();
+
+  /** `adbPath` — путь к adb из настроек; пустая строка — искать автоматически. */
+  constructor(private readonly adbPath: () => string = () => "") {}
 
   async start(): Promise<void> {
     await this.#ensureServer();
@@ -63,7 +67,8 @@ export class DeviceManager {
     } catch {
       // Сервер не запущен — пробуем поднять его сами.
     }
-    for (const bin of ADB_CANDIDATES) {
+    const custom = this.adbPath();
+    for (const bin of custom ? [custom, ...ADB_CANDIDATES] : ADB_CANDIDATES) {
       if (bin !== "adb" && !existsSync(bin)) continue;
       try {
         await execFileAsync(bin, ["start-server"]);
@@ -73,7 +78,7 @@ export class DeviceManager {
         // пробуем следующий путь
       }
     }
-    throw new Error("Не удалось запустить ADB-сервер. Установите platform-tools и добавьте adb в PATH.");
+    throw new Error(t("err.adbStart"));
   }
 
   async #sync(list: readonly AdbServerClient.Device[]): Promise<void> {
@@ -177,7 +182,7 @@ export class DeviceManager {
   async forEach(serials: string[], action: (serial: string) => Promise<string | void>): Promise<DeviceResult[]> {
     return Promise.all(
       serials.map(async (serial): Promise<DeviceResult> => {
-        if (!this.has(serial)) return { serial, success: false, error: "Устройство не подключено или не авторизовано" };
+        if (!this.has(serial)) return { serial, success: false, error: t("err.deviceUnavailable") };
         try {
           const output = await action(serial);
           return { serial, success: true, output: output ?? undefined };

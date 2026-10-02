@@ -17,7 +17,7 @@ Live screens, mouse control with broadcast to every selected device, action reco
 
 </div>
 
-> The interface is currently in Russian.
+> The interface is available in English and Russian. Switch it in **Settings** (⚙ in the top bar).
 
 ---
 
@@ -32,6 +32,7 @@ Live screens, mouse control with broadcast to every selected device, action reco
 | 🧩 **Scenarios** | Step editor with repeats (including infinite), a delay between runs, parallel runs on any set of devices, and import/export to JSON. |
 | ⚡ **Batch actions** | Buttons, text input, app launch, APK install, screenshots, reboot and raw `adb shell` on many devices at once. |
 | 🌐 **Proxies** | Import from a file (`type://host:port[:login[:password]]`) or from the CyberYozh API. Proxies are handed out round-robin through Android's system HTTP proxy, and you can check each device's IP. |
+| ⚙️ **Settings** | Interface language, stream quality (resolution, bitrate, FPS, keep screen on), CyberYozh API key with periodic list refresh, the URL used for IP checks, a custom `adb` path, and confirmations for destructive actions. |
 
 ## Getting started
 
@@ -125,7 +126,7 @@ src/
 ├── main/       Electron main process. Owns all ADB access.
 ├── preload/    Typed window.farm bridge (contract: FarmApi in shared/types.ts)
 ├── renderer/   React UI
-└── shared/     Types, scenario schema and validation
+└── shared/     Types, scenario and settings validation, translations
 ```
 
 | File | Responsibility |
@@ -137,6 +138,8 @@ src/
 | `main/runner.ts` | `ScenarioRunner`: runs scenarios, cancellation via `AbortSignal` |
 | `main/scenarios.ts` | `ScenarioStore`: persists to `userData/scenarios.json` |
 | `main/proxies.ts` | `ProxyStore`: proxies from a file or CyberYozh |
+| `main/settings.ts` | `SettingsStore`: persists to `userData/settings.json` |
+| `shared/i18n.ts` | Russian and English strings, `t()` for main and renderer |
 | `main/index.ts` | Window, CSP, validated IPC handlers |
 | `renderer/src/` | UI. `DeviceTile` decodes video with `WebCodecsVideoDecoder` |
 

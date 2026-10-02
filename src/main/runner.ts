@@ -1,7 +1,8 @@
 // Выполнение сценариев: на каждом устройстве свой независимый цикл, остановка через AbortSignal.
 
 import { randomUUID } from "node:crypto";
-import { PACKAGE_RE, STEP_LABELS } from "@shared/scenario";
+import { t } from "@shared/i18n";
+import { PACKAGE_RE, stepLabel } from "@shared/scenario";
 import type { GesturePoint, RunStatus, Scenario, Step } from "@shared/types";
 import { shellCommand, type DeviceManager } from "./devices";
 import type { MirrorManager } from "./mirror";
@@ -67,8 +68,8 @@ export class ScenarioRunner {
 
   start(scenarioId: string, serials: string[]): void {
     const scenario = this.deps.scenarios.get(scenarioId);
-    if (!scenario) throw new Error("Сценарий не найден");
-    if (scenario.steps.length === 0) throw new Error("В сценарии нет шагов");
+    if (!scenario) throw new Error(t("err.scenarioNotFound"));
+    if (scenario.steps.length === 0) throw new Error(t("err.noSteps"));
 
     for (const serial of serials) {
       // На устройстве одновременно выполняется только один сценарий.
@@ -138,7 +139,7 @@ export class ScenarioRunner {
         await this.#step(status.serial, step, iteration, signal, depth);
       } catch (e) {
         if (e instanceof Stopped || signal.aborted) throw new Stopped();
-        const message = `Шаг ${i + 1} (${STEP_LABELS[step.type]}): ${e instanceof Error ? e.message : String(e)}`;
+        const message = t("err.step", { n: i + 1, label: stepLabel(step.type), message: e instanceof Error ? e.message : String(e) });
         if (!scenario.continueOnError) throw new Error(message);
         console.warn(`[runner ${status.serial}] ${message}`);
       }
@@ -148,7 +149,7 @@ export class ScenarioRunner {
   async #step(serial: string, step: Step, iteration: number, signal: AbortSignal, depth: number): Promise<void> {
     const { devices, mirror } = this.deps;
     const pkg = (p: string) => {
-      if (!PACKAGE_RE.test(p)) throw new Error("не указан или некорректен пакет");
+      if (!PACKAGE_RE.test(p)) throw new Error(t("err.stepPackage"));
       return p;
     };
 
@@ -193,7 +194,7 @@ export class ScenarioRunner {
 
       case "launchApp": {
         const out = await devices.shell(serial, shellCommand("monkey", "-p", pkg(step.package), "-c", "android.intent.category.LAUNCHER", "1"));
-        if (/No activities found|monkey aborted/i.test(out)) throw new Error(`приложение ${step.package} не найдено`);
+        if (/No activities found|monkey aborted/i.test(out)) throw new Error(t("err.appNotFound", { pkg: step.package }));
         return;
       }
 
@@ -203,7 +204,7 @@ export class ScenarioRunner {
 
       case "clearAppData": {
         const out = await devices.shell(serial, shellCommand("pm", "clear", pkg(step.package)));
-        if (!out.includes("Success")) throw new Error(out.trim() || "не удалось очистить данные");
+        if (!out.includes("Success")) throw new Error(out.trim() || t("err.clearFailed"));
         return;
       }
 
@@ -216,14 +217,14 @@ export class ScenarioRunner {
         return;
 
       case "shell":
-        if (!step.command.trim()) throw new Error("пустая команда");
+        if (!step.command.trim()) throw new Error(t("err.stepEmptyCommand"));
         await devices.shell(serial, step.command);
         return;
 
       case "runScenario": {
-        if (depth >= MAX_NESTING) throw new Error("слишком глубокая вложенность сценариев");
+        if (depth >= MAX_NESTING) throw new Error(t("err.nestingTooDeep"));
         const nested = this.deps.scenarios.get(step.scenarioId);
-        if (!nested) throw new Error("вложенный сценарий не найден");
+        if (!nested) throw new Error(t("err.nestedNotFound"));
         // Вложенный сценарий выполняется один раз, его собственные повторы игнорируются.
         await this.#steps({ serial } as RunStatus, nested, iteration, signal, depth + 1, false);
         return;

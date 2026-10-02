@@ -841,3 +841,86 @@ select.input {
   flex-shrink: 0;
   overflow: visible;
 }
+
+/* --- Настройки --- */
+
+.settings-btn {
+  font-size: 17px;
+}
+
+.modal.settings-modal {
+  width: min(620px, 100%);
+  height: auto;
+  max-height: 100%;
+}
+
+.modal-title {
+  margin: 0;
+  font-size: 16px;
+}
+
+.settings-body {
+  overflow: auto;
+  padding: 4px 0;
+}
+
+.settings-group {
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.settings-group:last-child {
+  border-bottom: none;
+}
+
+.settings-group h3 {
+  margin: 0;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: var(--muted);
+}
+
+.settings-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.settings-row > .input {
+  width: 180px;
+  flex-shrink: 0;
+}
+
+.settings-group .check {
+  padding-bottom: 0;
+}
+
+/* Кнопка рядом с полем ввода не сжимается до «…» — поле уступает место. */
+.row > .btn {
+  flex-shrink: 0;
+}
+
+.settings-body > .hint.error {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  padding: 10px 18px;
+  background: var(--panel);
+  border-bottom: 1px solid var(--border);
+}
+
+.about-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.about-row a {
+  color: var(--accent);
+  text-decoration: none;
+}

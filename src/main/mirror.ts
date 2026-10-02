@@ -11,13 +11,11 @@ import {
   ScrcpyPointerId,
 } from "@yume-chan/scrcpy";
 import { ReadableStream } from "@yume-chan/stream-extra";
-import type { NavKey, TouchEvent, VideoPacket } from "@shared/types";
+import { t } from "@shared/i18n";
+import { DEFAULT_STREAM } from "@shared/settings";
+import type { NavKey, StreamSettings, TouchEvent, VideoPacket } from "@shared/types";
 import type { DeviceManager } from "./devices";
 
-// Небольшое разрешение и битрейт: на ферме одновременно идут десятки потоков.
-const MAX_SIZE = 720;
-const BIT_RATE = 2_000_000;
-const MAX_FPS = 30;
 
 const KEYS: Record<NavKey, AndroidKeyCode> = {
   back: AndroidKeyCode.AndroidBack,
@@ -58,6 +56,8 @@ export class MirrorManager {
     private readonly devices: DeviceManager,
     serverPath: string,
     private readonly sink: MirrorSink,
+    /** Качество потока из настроек; читается при каждом запуске сессии. */
+    private readonly stream: () => StreamSettings = () => DEFAULT_STREAM,
   ) {
     this.#server = readFile(serverPath);
   }
@@ -109,14 +109,16 @@ export class MirrorManager {
     }
     await pushed;
 
+    // По умолчанию небольшое разрешение и битрейт: на ферме одновременно идут десятки потоков.
+    const quality = this.stream();
     const options = new AdbScrcpyOptions3_3_3({
       audio: false,
       control: true,
       videoCodec: "h264",
-      maxSize: MAX_SIZE,
-      videoBitRate: BIT_RATE,
-      maxFps: MAX_FPS,
-      stayAwake: true,
+      maxSize: quality.maxSize,
+      videoBitRate: Math.round(quality.bitRate * 1_000_000),
+      maxFps: quality.maxFps,
+      stayAwake: quality.stayAwake,
       clipboardAutosync: false,
       // Forward-туннель не требует локального сервера для reverse-подключений и проще уживается с десятками устройств.
       tunnelForward: true,
@@ -127,7 +129,7 @@ export class MirrorManager {
     const video = await client.videoStream;
     if (!video) {
       await client.close();
-      throw new Error("scrcpy не отдал видеопоток");
+      throw new Error(t("err.noVideo"));
     }
     const session: Session = { client, video };
 
@@ -141,7 +143,7 @@ export class MirrorManager {
   }
 
   async #pump(serial: string, session: Session): Promise<void> {
-    let reason = "Трансляция завершена";
+    let reason = t("err.mirrorEnded");
     try {
       const reader = session.video.stream.getReader();
       while (true) {

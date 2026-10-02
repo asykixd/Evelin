@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { newScenario } from "@shared/scenario";
 import type { DeviceInfo, RecordingStatus, RunStatus, Scenario } from "@shared/types";
 import { errorText } from "../errors";
+import { useSettings, useT } from "../settings";
 
 interface Props {
   devices: DeviceInfo[];
@@ -15,14 +16,9 @@ interface Props {
   onEdit: (scenario: Scenario) => void;
 }
 
-const RUN_STATE: Record<RunStatus["state"], string> = {
-  running: "выполняется",
-  done: "готово",
-  failed: "ошибка",
-  stopped: "остановлен",
-};
-
 export function ScenariosPanel({ devices, targets, preferredSerial, scenarios, setScenarios, runs, recording, onEdit }: Props) {
+  const t = useT();
+  const { settings } = useSettings();
   const online = devices.filter((d) => d.state === "device");
   const [recSerial, setRecSerial] = useState<string>("");
   const [error, setError] = useState<string | undefined>();
@@ -60,18 +56,18 @@ export function ScenariosPanel({ devices, targets, preferredSerial, scenarios, s
   return (
     <div className="panel">
       <section>
-        <h3>Запись действий</h3>
+        <h3>{t("scen.recording")}</h3>
         {recording ? (
           <>
             <div className="rec-status">
-              <span className="rec-dot" /> {nameOf(recording.serial)} · {formatDuration(now - recording.startedAt)} · событий: {recording.events}
+              <span className="rec-dot" /> {nameOf(recording.serial)} · {formatDuration(now - recording.startedAt)} · {t("scen.events", { n: recording.events })}
             </div>
             <p className="hint">
-              Действуйте прямо на телефоне или через его плитку в Evelin.
+              {t("scen.recHint")}
               {!recording.physical && (
                 <>
                   {" "}
-                  <span className="warn">Касания по самому телефону не записываются: {recording.physicalError}.</span>
+                  <span className="warn">{t("scen.noPhysical", { error: recording.physicalError ?? "" })}</span>
                 </>
               )}
             </p>
@@ -81,16 +77,16 @@ export function ScenariosPanel({ devices, targets, preferredSerial, scenarios, s
                 onClick={() =>
                   act(async () => {
                     const scenario = await window.farm.recorder.stop();
-                    if (!scenario) return setNotice("Ничего не записано");
+                    if (!scenario) return setNotice(t("scen.nothingRecorded"));
                     setScenarios(await window.farm.scenarios.list());
                     onEdit(scenario);
                   })
                 }
               >
-                ■ Сохранить
+                {t("scen.stopRec")}
               </button>
               <button className="btn" onClick={() => act(() => window.farm.recorder.cancel())}>
-                Отменить
+                {t("common.cancel")}
               </button>
             </div>
           </>
@@ -105,44 +101,44 @@ export function ScenariosPanel({ devices, targets, preferredSerial, scenarios, s
                 ))}
               </select>
               <button className="btn rec" disabled={!recSerial} onClick={() => act(() => window.farm.recorder.start(recSerial))}>
-                ● Запись
+                {t("scen.record")}
               </button>
             </div>
-            <p className="hint">Записываются касания, свайпы, кнопки, ввод текста, запуск приложений и паузы между действиями.</p>
+            <p className="hint">{t("scen.recWhat")}</p>
           </>
         )}
       </section>
 
       {running.length > 0 && (
         <section>
-          <h3>Выполняется</h3>
+          <h3>{t("scen.runningNow")}</h3>
           <ul className="run-list">
             {running.map((r) => (
               <li key={r.runId}>
                 <div className="run-main">
                   <b>{nameOf(r.serial)}</b> — {r.scenarioName}
                   <div className="muted">
-                    шаг {r.stepIndex + 1}/{r.stepCount} · повтор {r.iteration}
+                    {t("scen.stepOf", { step: r.stepIndex + 1, count: r.stepCount, iteration: r.iteration })}
                   </div>
                 </div>
-                <button className="icon-btn" title="Остановить" onClick={() => act(() => window.farm.scenarios.stop([r.serial]))}>
+                <button className="icon-btn" title={t("scen.stop")} onClick={() => act(() => window.farm.scenarios.stop([r.serial]))}>
                   ■
                 </button>
               </li>
             ))}
           </ul>
           <button className="btn danger wide" onClick={() => act(() => window.farm.scenarios.stop())}>
-            Остановить все
+            {t("scen.stopAll")}
           </button>
         </section>
       )}
 
       <section>
         <div className="section-head">
-          <h3>Сценарии</h3>
+          <h3>{t("scen.title")}</h3>
           <div className="row-tight">
             <button className="link" onClick={() => onEdit(newScenario())}>
-              + создать
+              {t("scen.create")}
             </button>
             <button
               className="link"
@@ -152,18 +148,17 @@ export function ScenariosPanel({ devices, targets, preferredSerial, scenarios, s
                   setScenarios(res.scenarios);
                   if (res.imported > 0) {
                     setNotice(
-                      `Импортировано: ${res.imported}` +
-                        (res.withShell > 0 ? `. Внимание: ${res.withShell} содержат ADB shell-команды — проверьте их перед запуском.` : ""),
+                      t("scen.imported", { n: res.imported }) + (res.withShell > 0 ? t("scen.importedShell", { n: res.withShell }) : ""),
                     );
                   }
                 })
               }
             >
-              импорт
+              {t("scen.import")}
             </button>
           </div>
         </div>
-        {scenarios.length === 0 && <p className="hint">Пока пусто. Запишите действия или создайте сценарий вручную.</p>}
+        {scenarios.length === 0 && <p className="hint">{t("scen.empty")}</p>}
         <ul className="scenario-list">
           {scenarios.map((s) => {
             const last = runs.filter((r) => r.scenarioId === s.id && r.state !== "running");
@@ -173,11 +168,11 @@ export function ScenariosPanel({ devices, targets, preferredSerial, scenarios, s
                 <div className="scenario-main" onDoubleClick={() => onEdit(s)}>
                   <div className="scenario-name">{s.name}</div>
                   <div className="muted">
-                    шагов: {s.steps.length} · {s.repeat === 0 ? "∞ повторов" : `повторов: ${s.repeat}`}
+                    {t("scen.steps", { n: s.steps.length })} · {s.repeat === 0 ? t("scen.repeatInf") : t("scen.repeats", { n: s.repeat })}
                     {last.length > 0 && (
                       <span className={failed.length ? "fail" : "ok"}>
                         {" "}
-                        · {failed.length ? `ошибок: ${failed.length}` : RUN_STATE[last[0]!.state]}
+                        · {failed.length ? t("scen.errors", { n: failed.length }) : t(`run.${last[0]!.state}`)}
                       </span>
                     )}
                   </div>
@@ -187,29 +182,29 @@ export function ScenariosPanel({ devices, targets, preferredSerial, scenarios, s
                   <button
                     className="btn primary"
                     disabled={targets.length === 0 || s.steps.length === 0}
-                    title={`Запустить на ${targets.length} устр.`}
+                    title={t("scen.runOn", { n: targets.length })}
                     onClick={() => act(() => window.farm.scenarios.run(s.id, targets))}
                   >
                     ▶ {targets.length}
                   </button>
-                  <button className="icon-btn" title="Редактировать" onClick={() => onEdit(s)}>
+                  <button className="icon-btn" title={t("common.edit")} onClick={() => onEdit(s)}>
                     ✎
                   </button>
                   <button
                     className="icon-btn"
-                    title="Дублировать"
-                    onClick={() => act(async () => setScenarios(await window.farm.scenarios.save({ ...s, id: crypto.randomUUID(), name: `${s.name} (копия)` })))}
+                    title={t("common.duplicate")}
+                    onClick={() => act(async () => setScenarios(await window.farm.scenarios.save({ ...s, id: crypto.randomUUID(), name: t("scen.copy", { name: s.name }) })))}
                   >
                     ⧉
                   </button>
-                  <button className="icon-btn" title="Экспорт в файл" onClick={() => act(() => window.farm.scenarios.exportFile(s.id))}>
+                  <button className="icon-btn" title={t("scen.export")} onClick={() => act(() => window.farm.scenarios.exportFile(s.id))}>
                     ⇩
                   </button>
                   <button
                     className="icon-btn"
-                    title="Удалить"
+                    title={t("common.delete")}
                     onClick={() => {
-                      if (confirm(`Удалить сценарий «${s.name}»?`)) void act(async () => setScenarios(await window.farm.scenarios.remove(s.id)));
+                      if (!settings.confirmDanger || confirm(t("scen.deleteConfirm", { name: s.name }))) void act(async () => setScenarios(await window.farm.scenarios.remove(s.id)));
                     }}
                   >
                     ✕

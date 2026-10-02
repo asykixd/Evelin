@@ -6,21 +6,47 @@ import { ProxyPanel } from "./components/ProxyPanel";
 import { LogPanel, type LogEntry } from "./components/LogPanel";
 import { ScenarioEditor } from "./components/ScenarioEditor";
 import { ScenariosPanel } from "./components/ScenariosPanel";
+import { SettingsModal } from "./components/SettingsModal";
+import { useSettings, useT } from "./settings";
 
 type Tab = "actions" | "scenarios" | "proxy";
 
+const TILE_WIDTH_KEY = "evelin.tileWidth";
+
+function savedTileWidth(): number {
+  try {
+    const n = Number(localStorage.getItem(TILE_WIDTH_KEY));
+    return n >= 160 && n <= 420 ? n : 240;
+  } catch {
+    return 240;
+  }
+}
+
 export function App() {
+  const t = useT();
+  const { settings } = useSettings();
   const [devices, setDevices] = useState<DeviceInfo[]>([]);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [focused, setFocused] = useState<string | undefined>();
   const [broadcast, setBroadcast] = useState(false);
-  const [tileWidth, setTileWidth] = useState(240);
+  const [tileWidth, setTileWidth] = useState(savedTileWidth);
   const [tab, setTab] = useState<Tab>("actions");
   const [log, setLog] = useState<LogEntry[]>([]);
   const [scenarios, setScenarios] = useState<Scenario[]>([]);
   const [runs, setRuns] = useState<RunStatus[]>([]);
   const [recording, setRecording] = useState<RecordingStatus | null>(null);
   const [editing, setEditing] = useState<Scenario | undefined>();
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  // Смена качества трансляции в настройках переподключает все плитки.
+  const streamKey = JSON.stringify(settings.stream);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(TILE_WIDTH_KEY, String(tileWidth));
+    } catch {
+      // хранилище недоступно — размер просто не запомнится
+    }
+  }, [tileWidth]);
 
   useEffect(() => {
     void window.farm.devices.list().then(setDevices);
@@ -104,35 +130,38 @@ export function App() {
         <div className="brand">Evelin</div>
         <div className="topbar-stats">
           <span>
-            Устройств: <b>{online.length}</b>
+            {t("top.devices")} <b>{online.length}</b>
             {devices.length > online.length && <span className="muted"> / {devices.length}</span>}
           </span>
           <span>
-            Выбрано: <b>{selected.size}</b>
+            {t("top.selected")} <b>{selected.size}</b>
           </span>
         </div>
         <div className="topbar-controls">
           <button className="btn" onClick={() => setSelected(new Set(online.map((d) => d.serial)))}>
-            Выбрать все
+            {t("top.selectAll")}
           </button>
           <button className="btn" onClick={() => setSelected(new Set())} disabled={selected.size === 0}>
-            Снять выбор
+            {t("top.deselect")}
           </button>
-          <label className={`toggle${broadcast ? " on" : ""}`} title="Касания и кнопки на любом выбранном устройстве повторяются на всех выбранных">
+          <label className={`toggle${broadcast ? " on" : ""}`} title={t("top.broadcastHint")}>
             <input type="checkbox" checked={broadcast} onChange={(e) => setBroadcast(e.target.checked)} />
-            Синхронное управление
+            {t("top.broadcast")}
           </label>
-          <label className="slider" title="Размер плиток">
+          <label className="slider" title={t("top.tileSize")}>
             <input type="range" min={160} max={420} step={10} value={tileWidth} onChange={(e) => setTileWidth(Number(e.target.value))} />
           </label>
+          <button className="icon-btn settings-btn" title={t("top.settings")} onClick={() => setSettingsOpen(true)}>
+            ⚙
+          </button>
         </div>
       </header>
 
       <main className="content">
         {devices.length === 0 ? (
           <div className="empty">
-            <h2>Нет подключённых устройств</h2>
-            <p>Подключите телефон по USB и включите «Отладку по USB» в настройках разработчика.</p>
+            <h2>{t("empty.title")}</h2>
+            <p>{t("empty.text")}</p>
           </div>
         ) : (
           <div className="grid" style={{ gridTemplateColumns: `repeat(auto-fill, minmax(${tileWidth}px, 1fr))` }}>
@@ -144,6 +173,7 @@ export function App() {
                 focused={focused === d.serial}
                 recording={recording?.serial === d.serial}
                 run={runs.find((r) => r.serial === d.serial && r.state === "running")}
+                streamKey={streamKey}
                 targets={() => targetsFor(d.serial)}
                 onToggleSelect={() => toggle(d.serial)}
                 onToggleFocus={() => setFocused((f) => (f === d.serial ? undefined : d.serial))}
@@ -156,18 +186,18 @@ export function App() {
       <aside className="sidebar">
         <nav className="tabs">
           <button className={tab === "actions" ? "active" : ""} onClick={() => setTab("actions")}>
-            Действия
+            {t("tab.actions")}
           </button>
           <button className={tab === "scenarios" ? "active" : ""} onClick={() => setTab("scenarios")}>
-            Сценарии
+            {t("tab.scenarios")}
             {runs.some((r) => r.state === "running") && <span className="tab-dot" />}
           </button>
           <button className={tab === "proxy" ? "active" : ""} onClick={() => setTab("proxy")}>
-            Прокси
+            {t("tab.proxy")}
           </button>
         </nav>
         <div className="targets-hint">
-          {selected.size > 0 ? `Применяется к выбранным: ${selected.size}` : `Применяется ко всем: ${online.length}`}
+          {selected.size > 0 ? t("targets.selected", { n: selected.size }) : t("targets.all", { n: online.length })}
         </div>
         <div className="sidebar-body">
           {tab === "actions" && <ActionsPanel targets={actionTargets} run={run} />}
@@ -183,12 +213,13 @@ export function App() {
               onEdit={setEditing}
             />
           )}
-          {tab === "proxy" && <ProxyPanel targets={actionTargets} run={run} />}
+          {tab === "proxy" && <ProxyPanel targets={actionTargets} run={run} onOpenSettings={() => setSettingsOpen(true)} />}
         </div>
         <LogPanel entries={log} onClear={() => setLog([])} />
       </aside>
 
       {editing && <ScenarioEditor key={editing.id} scenario={editing} scenarios={scenarios} onSaved={setScenarios} onClose={() => setEditing(undefined)} />}
+      {settingsOpen && <SettingsModal onClose={() => setSettingsOpen(false)} />}
     </div>
   );
 }

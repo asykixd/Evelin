@@ -1,7 +1,8 @@
 import { useEffect, useState, type ReactNode } from "react";
-import { describeStep, KEY_LABELS, newStep, NAV_KEYS, STEP_LABELS } from "@shared/scenario";
+import { describeStep, keyLabel, newStep, NAV_KEYS, stepLabel } from "@shared/scenario";
 import type { NavKey, Scenario, Step, StepType } from "@shared/types";
 import { errorText } from "../errors";
+import { useT } from "../settings";
 
 interface Props {
   scenario: Scenario;
@@ -26,6 +27,7 @@ const ADDABLE: StepType[] = [
 ];
 
 export function ScenarioEditor({ scenario, scenarios, onSaved, onClose }: Props) {
+  const t = useT();
   const [draft, setDraft] = useState<Scenario>(scenario);
   const [addType, setAddType] = useState<StepType>("tap");
   const [error, setError] = useState<string | undefined>();
@@ -41,7 +43,7 @@ export function ScenarioEditor({ scenario, scenarios, onSaved, onClose }: Props)
   });
 
   function close() {
-    if (!dirty || confirm("Закрыть без сохранения?")) onClose();
+    if (!dirty || confirm(t("editor.closeConfirm"))) onClose();
   }
 
   const patch = (p: Partial<Scenario>) => setDraft((d) => ({ ...d, ...p }));
@@ -76,40 +78,40 @@ export function ScenarioEditor({ scenario, scenarios, onSaved, onClose }: Props)
     <div className="modal-backdrop" onMouseDown={(e) => e.target === e.currentTarget && close()}>
       <div className="modal">
         <header className="modal-header">
-          <input className="input title-input" value={draft.name} onChange={(e) => patch({ name: e.target.value })} placeholder="Название сценария" />
-          <button className="icon-btn" onClick={close} title="Закрыть">
+          <input className="input title-input" value={draft.name} onChange={(e) => patch({ name: e.target.value })} placeholder={t("editor.name")} />
+          <button className="icon-btn" onClick={close} title={t("common.close")}>
             ✕
           </button>
         </header>
 
         <div className="modal-settings">
-          <Field label="Повторов" hint="0 — бесконечно">
+          <Field label={t("editor.repeat")} hint={t("editor.repeatHint")}>
             <input className="input num" type="number" min={0} value={draft.repeat} onChange={(e) => patch({ repeat: Math.max(0, int(e.target.value)) })} />
           </Field>
-          <Field label="Пауза между повторами, мс">
+          <Field label={t("editor.pause")}>
             <input className="input num" type="number" min={0} step={500} value={draft.pauseMs} onChange={(e) => patch({ pauseMs: Math.max(0, int(e.target.value)) })} />
           </Field>
           <label className="check">
             <input type="checkbox" checked={draft.continueOnError} onChange={(e) => patch({ continueOnError: e.target.checked })} />
-            Продолжать при ошибке шага
+            {t("editor.continueOnError")}
           </label>
         </div>
 
         <div className="steps">
-          {draft.steps.length === 0 && <p className="hint pad">Шагов пока нет — добавьте их ниже или запишите действия на телефоне.</p>}
+          {draft.steps.length === 0 && <p className="hint pad">{t("editor.noSteps")}</p>}
           {draft.steps.map((step, i) => (
             <div key={step.id} className={`step${step.enabled ? "" : " disabled"}`}>
               <div className="step-index">{i + 1}</div>
-              <input type="checkbox" title="Включён" checked={step.enabled} onChange={(e) => updateStep(step.id, { enabled: e.target.checked })} />
+              <input type="checkbox" title={t("editor.enabled")} checked={step.enabled} onChange={(e) => updateStep(step.id, { enabled: e.target.checked })} />
               <div className="step-body">
                 <div className="step-title">
-                  <span className={`step-type t-${step.type}`}>{STEP_LABELS[step.type]}</span>
+                  <span className={`step-type t-${step.type}`}>{stepLabel(step.type)}</span>
                   <span className="muted">{describeStep(step, scenarios)}</span>
                 </div>
                 <StepParams step={step} scenarios={nestable} update={(p) => updateStep(step.id, p)} />
               </div>
-              <label className="every" title="Выполнять на 1-м, (N+1)-м, (2N+1)-м… повторе">
-                каждый
+              <label className="every" title={t("editor.everyHint")}>
+                {t("editor.everyBefore")}
                 <input
                   className="input num tiny"
                   type="number"
@@ -117,19 +119,19 @@ export function ScenarioEditor({ scenario, scenarios, onSaved, onClose }: Props)
                   value={step.everyNth ?? 1}
                   onChange={(e) => updateStep(step.id, { everyNth: Math.max(1, int(e.target.value)) })}
                 />
-                -й
+                {t("editor.everyAfter")}
               </label>
               <div className="step-actions">
-                <button className="icon-btn" title="Выше" disabled={i === 0} onClick={() => move(i, -1)}>
+                <button className="icon-btn" title={t("editor.up")} disabled={i === 0} onClick={() => move(i, -1)}>
                   ↑
                 </button>
-                <button className="icon-btn" title="Ниже" disabled={i === draft.steps.length - 1} onClick={() => move(i, 1)}>
+                <button className="icon-btn" title={t("editor.down")} disabled={i === draft.steps.length - 1} onClick={() => move(i, 1)}>
                   ↓
                 </button>
-                <button className="icon-btn" title="Дублировать" onClick={() => setSteps((s) => [...s.slice(0, i + 1), { ...step, id: crypto.randomUUID() }, ...s.slice(i + 1)])}>
+                <button className="icon-btn" title={t("common.duplicate")} onClick={() => setSteps((s) => [...s.slice(0, i + 1), { ...step, id: crypto.randomUUID() }, ...s.slice(i + 1)])}>
                   ⧉
                 </button>
-                <button className="icon-btn" title="Удалить" onClick={() => setSteps((s) => s.filter((x) => x.id !== step.id))}>
+                <button className="icon-btn" title={t("common.delete")} onClick={() => setSteps((s) => s.filter((x) => x.id !== step.id))}>
                   ✕
                 </button>
               </div>
@@ -140,23 +142,23 @@ export function ScenarioEditor({ scenario, scenarios, onSaved, onClose }: Props)
         <footer className="modal-footer">
           <div className="row-tight">
             <select className="input" value={addType} onChange={(e) => setAddType(e.target.value as StepType)}>
-              {ADDABLE.map((t) => (
-                <option key={t} value={t}>
-                  {STEP_LABELS[t]}
+              {ADDABLE.map((type) => (
+                <option key={type} value={type}>
+                  {stepLabel(type)}
                 </option>
               ))}
             </select>
             <button className="btn" onClick={() => setSteps((s) => [...s, newStep(addType)])}>
-              + Добавить шаг
+              {t("editor.addStep")}
             </button>
           </div>
           <div className="row-tight">
             {error && <span className="fail small">{error}</span>}
             <button className="btn" onClick={close}>
-              Отмена
+              {t("common.cancel")}
             </button>
             <button className="btn primary" disabled={saving} onClick={save}>
-              Сохранить
+              {t("common.save")}
             </button>
           </div>
         </footer>
@@ -166,6 +168,7 @@ export function ScenarioEditor({ scenario, scenarios, onSaved, onClose }: Props)
 }
 
 function StepParams({ step, scenarios, update }: { step: Step; scenarios: Scenario[]; update: (p: Partial<Step>) => void }) {
+  const t = useT();
   switch (step.type) {
     case "tap":
       return (
@@ -181,7 +184,7 @@ function StepParams({ step, scenarios, update }: { step: Step; scenarios: Scenar
           <Pct label="Y1" value={step.y1} onChange={(y1) => update({ y1 })} />
           <Pct label="X2" value={step.x2} onChange={(x2) => update({ x2 })} />
           <Pct label="Y2" value={step.y2} onChange={(y2) => update({ y2 })} />
-          <Num label="мс" value={step.duration} min={10} onChange={(duration) => update({ duration })} />
+          <Num label={t("editor.ms")} value={step.duration} min={10} onChange={(duration) => update({ duration })} />
         </div>
       );
     case "key":
@@ -190,7 +193,7 @@ function StepParams({ step, scenarios, update }: { step: Step; scenarios: Scenar
           <select className="input" value={step.key} onChange={(e) => update({ key: e.target.value as NavKey })}>
             {NAV_KEYS.map((k) => (
               <option key={k} value={k}>
-                {KEY_LABELS[k]}
+                {keyLabel(k)}
               </option>
             ))}
           </select>
@@ -199,14 +202,14 @@ function StepParams({ step, scenarios, update }: { step: Step; scenarios: Scenar
     case "text":
       return (
         <div className="params">
-          <input className="input" value={step.text} placeholder="Текст" onChange={(e) => update({ text: e.target.value })} />
+          <input className="input" value={step.text} placeholder={t("editor.text")} onChange={(e) => update({ text: e.target.value })} />
         </div>
       );
     case "wait":
       return (
         <div className="params">
-          <Num label="от, мс" value={step.ms} onChange={(ms) => update({ ms })} />
-          <Num label="до, мс" value={step.maxMs ?? 0} onChange={(maxMs) => update({ maxMs: maxMs || undefined })} hint="0 — без случайности" />
+          <Num label={t("editor.fromMs")} value={step.ms} onChange={(ms) => update({ ms })} />
+          <Num label={t("editor.toMs")} value={step.maxMs ?? 0} onChange={(maxMs) => update({ maxMs: maxMs || undefined })} hint={t("editor.noRandom")} />
         </div>
       );
     case "launchApp":
@@ -227,7 +230,7 @@ function StepParams({ step, scenarios, update }: { step: Step; scenarios: Scenar
       return (
         <div className="params">
           <select className="input" value={step.scenarioId} onChange={(e) => update({ scenarioId: e.target.value })}>
-            <option value="">— выберите сценарий —</option>
+            <option value="">{t("editor.pickScenario")}</option>
             {scenarios.map((s) => (
               <option key={s.id} value={s.id}>
                 {s.name}

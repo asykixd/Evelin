@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer, type IpcRendererEvent } from "electron";
-import type { DeviceInfo, FarmApi, RecordingStatus, RunStatus, VideoPacket } from "@shared/types";
+import type { DeviceInfo, FarmApi, ProxyState, RecordingStatus, RunStatus, VideoPacket } from "@shared/types";
 
 // Наружу отдаём только узкий типизированный API, без доступа к ipcRenderer.
 function subscribe<A extends unknown[]>(channel: string, listener: (...args: A) => void): () => void {
@@ -9,6 +9,13 @@ function subscribe<A extends unknown[]>(channel: string, listener: (...args: A) 
 }
 
 const api: FarmApi = {
+  settings: {
+    get: () => ipcRenderer.invoke("settings:get"),
+    update: (patch) => ipcRenderer.invoke("settings:update", patch),
+    pickAdbPath: () => ipcRenderer.invoke("settings:pickAdb"),
+    info: () => ipcRenderer.invoke("settings:info"),
+    openDataDir: () => ipcRenderer.invoke("settings:openDataDir"),
+  },
   devices: {
     list: () => ipcRenderer.invoke("devices:list"),
     refresh: (serial) => ipcRenderer.invoke("devices:refresh", serial),
@@ -44,6 +51,7 @@ const api: FarmApi = {
     assign: (serials) => ipcRenderer.invoke("proxy:assign", serials),
     clear: (serials) => ipcRenderer.invoke("proxy:clear", serials),
     test: (serials) => ipcRenderer.invoke("proxy:test", serials),
+    onChange: (listener) => subscribe<[ProxyState]>("proxy:changed", listener),
   },
   scenarios: {
     list: () => ipcRenderer.invoke("scenarios:list"),
