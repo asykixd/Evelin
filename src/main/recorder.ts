@@ -3,7 +3,9 @@ import type { NavKey, RecordingStatus, Scenario, StepBody, TouchEvent } from "@s
 import { locale, t } from "@shared/i18n";
 import { newScenario } from "@shared/scenario";
 import type { DeviceManager } from "./devices";
-import { eventsToSteps, findTouchscreen, GeteventParser, type RecordedEvent } from "./recording";
+import { eventsToSteps, findTouchscreen, GeteventParser, parseRotation, type RecordedEvent } from "./recording";
+
+const ROTATION_POLL_MS = 1000;
 
 interface Active {
   status: RecordingStatus;
@@ -70,9 +72,8 @@ export class Recorder {
     ]);
     const screen = findTouchscreen(pl);
     if (!screen) throw new Error(t("err.noTouchscreen"));
-    const rotation = Number(/SurfaceOrientation:\s*(\d)/.exec(input)?.[1] ?? 0);
 
-    const parser = new GeteventParser(screen, rotation, (e) => this.#add(active, e));
+    const parser = new GeteventParser(screen, parseRotation(input) ?? 0, (e) => this.#add(active, e));
     const adb = await this.devices.getAdb(serial);
     // PTY rather than plain exec: without a terminal getevent buffers output and touch timing is lost.
     const proc = await adb.subprocess.noneProtocol.pty("getevent -l");
@@ -89,7 +90,20 @@ export class Recorder {
         // process exited
       }
     })();
-    return () => void Promise.resolve(proc.kill()).catch(() => {});
+    // The phone may be turned while recording; sensor coordinates don't rotate with the display.
+    const rotationTimer = setInterval(() => {
+      this.devices
+        .shell(serial, "dumpsys input | grep SurfaceOrientation")
+        .then((out) => {
+          const rotation = parseRotation(out);
+          if (rotation !== undefined) parser.rotation = rotation;
+        })
+        .catch(() => {});
+    }, ROTATION_POLL_MS);
+    return () => {
+      clearInterval(rotationTimer);
+      void Promise.resolve(proc.kill()).catch(() => {});
+    };
   }
 
   #add(active: Active, e: { kind: "touch"; action: TouchEvent["action"]; x: number; y: number } | { kind: "key"; key: NavKey } | { kind: "step"; step: StepBody }): void {

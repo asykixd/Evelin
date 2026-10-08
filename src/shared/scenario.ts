@@ -8,6 +8,7 @@ const TOUCH_ACTIONS: readonly TouchAction[] = ["down", "move", "up"];
 const MAX_STEPS = 5000;
 const MAX_POINTS = 2000;
 const MAX_WAIT = 24 * 60 * 60 * 1000;
+const MAX_FIND_TIMEOUT = 10 * 60 * 1000;
 
 export function stepLabel(type: StepType): string {
   return t(`step.${type}`);
@@ -34,6 +35,9 @@ export function newStep(type: StepType): Step {
       return { ...base, type, key: "home" };
     case "text":
       return { ...base, type, text: "" };
+    case "waitText":
+    case "tapText":
+      return { ...base, type, text: "", timeoutMs: 10_000 };
     case "wait":
       return { ...base, type, ms: 1000 };
     case "launchApp":
@@ -72,6 +76,9 @@ export function describeStep(step: Step, scenarios: readonly Scenario[] = []): s
       return keyLabel(step.key);
     case "text":
       return `«${step.text}»`;
+    case "waitText":
+    case "tapText":
+      return step.text ? t("desc.findText", { text: step.text, s: step.timeoutMs / 1000 }) : t("desc.noText");
     case "wait":
       return t("desc.ms", { n: step.maxMs && step.maxMs > step.ms ? `${step.ms}–${step.maxMs}` : step.ms });
     case "launchApp":
@@ -145,6 +152,13 @@ function body(raw: Record<string, unknown>): StepBody {
       return { type: "key", key: raw.key as NavKey };
     case "text":
       return { type: "text", text: str(raw.text, 1000, t("field.text")) };
+    case "waitText":
+    case "tapText":
+      return {
+        type: raw.type as "waitText" | "tapText",
+        text: str(raw.text, 500, t("field.text")),
+        timeoutMs: Math.round(num(raw.timeoutMs ?? 10_000, 0, MAX_FIND_TIMEOUT, t("field.timeout"))),
+      };
     case "wait": {
       const ms = Math.round(num(raw.ms, 0, MAX_WAIT, t("field.wait")));
       const maxMs = raw.maxMs === undefined || raw.maxMs === null || raw.maxMs === 0 ? undefined : Math.round(num(raw.maxMs, 0, MAX_WAIT, t("field.waitMax")));

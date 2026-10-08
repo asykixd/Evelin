@@ -19,6 +19,7 @@
     "build": "electron-vite build",
     "start": "electron-vite preview",
     "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json",
+    "test": "vitest run",
     "dist": "npm run typecheck && electron-vite build && electron-builder",
     "dist:mac": "npm run typecheck && electron-vite build && electron-builder --mac",
     "dist:win": "npm run typecheck && electron-vite build && electron-builder --win"
@@ -43,7 +44,8 @@
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
     "typescript": "^5.9.3",
-    "vite": "^7.3.6"
+    "vite": "^7.3.6",
+    "vitest": "^5.0.3"
   },
   "allowScripts": {
     "esbuild@0.25.12": true,

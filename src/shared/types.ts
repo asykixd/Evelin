@@ -80,6 +80,9 @@ export type StepBody =
   | { type: "gesture"; points: GesturePoint[] }
   | { type: "key"; key: NavKey }
   | { type: "text"; text: string }
+  /** Polls `uiautomator dump` for a node whose text or description contains `text`. */
+  | { type: "waitText"; text: string; timeoutMs: number }
+  | { type: "tapText"; text: string; timeoutMs: number }
   | { type: "wait"; ms: number; maxMs?: number }
   | { type: "launchApp"; package: string }
   | { type: "stopApp"; package: string }

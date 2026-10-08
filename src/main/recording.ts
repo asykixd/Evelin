@@ -43,6 +43,12 @@ const PHYSICAL_KEYS: Record<string, NavKey> = {
   KEY_VOLUMEDOWN: "volume_down",
 };
 
+/** Parses the rotation out of `dumpsys input`; undefined when it isn't reported. */
+export function parseRotation(dumpsysInput: string): number | undefined {
+  const m = /SurfaceOrientation:\s*(\d)/.exec(dumpsysInput);
+  return m ? Number(m[1]) : undefined;
+}
+
 /** Maps sensor coordinates to display coordinates for rotation 0..3. */
 export function rotate(x: number, y: number, rotation: number): { x: number; y: number } {
   switch (rotation & 3) {
@@ -72,7 +78,8 @@ export class GeteventParser {
 
   constructor(
     private readonly screen: TouchscreenInfo,
-    private readonly rotation: number,
+    /** Display rotation 0..3; the recorder updates it when the phone is turned. */
+    public rotation: number,
     private readonly emit: Emit,
   ) {}
 

@@ -5,9 +5,15 @@ import type { GesturePoint, RunStatus, Scenario, Step } from "@shared/types";
 import { shellCommand, type DeviceManager } from "./devices";
 import type { MirrorManager } from "./mirror";
 import type { ScenarioStore } from "./scenarios";
+import { findNodeByText, isHierarchy } from "./uiautomator";
 
 const MAX_NESTING = 5;
 const SWIPE_FRAME_MS = 16;
+const FIND_POLL_MS = 500;
+const UI_DUMP_TIMEOUT = 20_000;
+// The old file is removed first so a failed dump can't return a stale screen; its error text stays in the output.
+const UI_DUMP_FILE = "/data/local/tmp/evelin-ui.xml";
+const UI_DUMP = `rm -f ${UI_DUMP_FILE}; uiautomator dump ${UI_DUMP_FILE} 2>&1 && cat ${UI_DUMP_FILE}`;
 
 export interface RunnerDeps {
   devices: DeviceManager;
@@ -42,6 +48,7 @@ interface Run {
 export class ScenarioRunner {
   #runs = new Map<string, Run>();
   #listeners = new Set<(runs: RunStatus[]) => void>();
+  #emitTimer: NodeJS.Timeout | undefined;
 
   constructor(private readonly deps: RunnerDeps) {}
 
@@ -55,8 +62,15 @@ export class ScenarioRunner {
   }
 
   #emit(): void {
+    clearTimeout(this.#emitTimer);
+    this.#emitTimer = undefined;
     const runs = this.list();
     for (const l of this.#listeners) l(runs);
+  }
+
+  /** Step progress is throttled: fast scenarios on many devices would otherwise flood IPC. */
+  #emitSoon(): void {
+    this.#emitTimer ??= setTimeout(() => this.#emit(), 100);
   }
 
   isBusy(serial: string): boolean {
@@ -66,7 +80,7 @@ export class ScenarioRunner {
   start(scenarioId: string, serials: string[]): void {
     const scenario = this.deps.scenarios.get(scenarioId);
     if (!scenario) throw new Error(t("err.scenarioNotFound"));
-    if (scenario.steps.length === 0) throw new Error(t("err.noSteps"));
+    if (!scenario.steps.some((s) => s.enabled)) throw new Error(t("err.noSteps"));
 
     for (const serial of serials) {
       this.stop([serial]);
@@ -107,7 +121,8 @@ export class ScenarioRunner {
         status.iteration = i;
         await this.#steps(status, scenario, i, signal, 0, true);
         const more = scenario.repeat === 0 || i < scenario.repeat;
-        if (more && scenario.pauseMs > 0) await sleep(scenario.pauseMs, signal);
+        // A zero pause still yields to the event loop, so an iteration of skipped steps can't starve IPC.
+        if (more) await sleep(scenario.pauseMs, signal);
       }
       status.state = "done";
     } catch (e) {
@@ -126,7 +141,7 @@ export class ScenarioRunner {
       if (signal.aborted) throw new Stopped();
       if (top) {
         status.stepIndex = i;
-        this.#emit();
+        this.#emitSoon();
       }
       if (!step.enabled) continue;
       if (step.everyNth && step.everyNth > 1 && (iteration - 1) % step.everyNth !== 0) continue;
@@ -151,9 +166,12 @@ export class ScenarioRunner {
     switch (step.type) {
       case "tap":
         await mirror.ensure(serial);
-        await mirror.touch([serial], { action: "down", x: step.x, y: step.y });
-        await sleep(60, signal);
-        await mirror.touch([serial], { action: "up", x: step.x, y: step.y });
+        await mirror.touchOne(serial, { action: "down", x: step.x, y: step.y });
+        try {
+          await sleep(60, signal);
+        } finally {
+          await mirror.touchOne(serial, { action: "up", x: step.x, y: step.y }).catch(() => {});
+        }
         return;
 
       case "swipe": {
@@ -173,13 +191,20 @@ export class ScenarioRunner {
 
       case "key":
         await mirror.ensure(serial);
-        await mirror.key([serial], step.key);
+        await mirror.keyOne(serial, step.key);
         return;
 
       case "text":
         await mirror.ensure(serial);
-        await mirror.text([serial], step.text);
+        await mirror.textOne(serial, step.text);
         return;
+
+      case "waitText":
+      case "tapText": {
+        const point = await this.#findText(serial, step.text, step.timeoutMs, signal);
+        if (step.type === "tapText") await this.#step(serial, { id: step.id, enabled: true, type: "tap", ...point }, iteration, signal, depth);
+        return;
+      }
 
       case "wait": {
         const ms = step.maxMs && step.maxMs > step.ms ? step.ms + Math.random() * (step.maxMs - step.ms) : step.ms;
@@ -227,6 +252,32 @@ export class ScenarioRunner {
     }
   }
 
+  async #findText(serial: string, text: string, timeoutMs: number, signal: AbortSignal): Promise<{ x: number; y: number }> {
+    if (!text.trim()) throw new Error(t("err.stepEmptyText"));
+    const deadline = performance.now() + timeoutMs;
+    let lastError: unknown;
+    for (;;) {
+      if (signal.aborted) throw new Stopped();
+      try {
+        const xml = await this.deps.devices.shell(serial, UI_DUMP, UI_DUMP_TIMEOUT);
+        if (isHierarchy(xml)) {
+          lastError = undefined;
+          const point = findNodeByText(xml, text);
+          if (point) return point;
+        } else {
+          lastError = new Error(xml.trim().split("\n").at(-1) || "?");
+        }
+      } catch (e) {
+        lastError = e;
+      }
+      if (performance.now() >= deadline) break;
+      await sleep(Math.min(FIND_POLL_MS, Math.max(0, deadline - performance.now())), signal);
+    }
+    // A dump that never worked is a different problem from text that never showed up.
+    if (lastError) throw new Error(t("err.uiDumpFailed", { error: lastError instanceof Error ? lastError.message : String(lastError) }));
+    throw new Error(t("err.textNotFound", { text, s: Math.round(timeoutMs / 1000) }));
+  }
+
   async #gesture(serial: string, points: GesturePoint[], signal: AbortSignal): Promise<void> {
     await this.deps.mirror.ensure(serial);
     const start = performance.now();
@@ -235,12 +286,12 @@ export class ScenarioRunner {
       for (const p of points) {
         const wait = p.t - (performance.now() - start);
         if (wait > 0) await sleep(wait, signal);
-        await this.deps.mirror.touch([serial], { action: p.action, x: p.x, y: p.y });
+        await this.deps.mirror.touchOne(serial, { action: p.action, x: p.x, y: p.y });
         last = p;
       }
     } finally {
       // Don't leave the finger pressed if the gesture was interrupted.
-      if (last && last.action !== "up") await this.deps.mirror.touch([serial], { action: "up", x: last.x, y: last.y });
+      if (last && last.action !== "up") await this.deps.mirror.touchOne(serial, { action: "up", x: last.x, y: last.y }).catch(() => {});
     }
   }
 }

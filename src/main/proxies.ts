@@ -13,18 +13,39 @@ export function isValidHostPort(host: string, port: string): boolean {
   return HOST_RE.test(host) && /^\d+$/.test(port) && n >= 1 && n <= 65535;
 }
 
-/** Line format: `type://host:port[:login[:password]]`; `#` starts a comment. */
+/** Supported device proxies: Android's global http_proxy only speaks HTTP. */
+export function isHttpProxy(p: Proxy): boolean {
+  return /^https?$/.test(p.type);
+}
+
+/**
+ * Line formats: `type://host:port[:login[:password]]` or `type://login:password@host:port`; `#` starts a comment.
+ * Passwords may contain `:`.
+ */
 export function parseProxyLines(text: string): Proxy[] {
   const proxies: Proxy[] = [];
   for (const raw of text.split(/\r?\n/)) {
     const line = raw.trim();
     if (!line || line.startsWith("#")) continue;
-    const parts = line.split("://");
-    if (parts.length !== 2) continue;
-    const [type, rest] = parts as [string, string];
-    const [host = "", port = "", login = "", password = ""] = rest.split(":");
+    const sep = line.indexOf("://");
+    if (sep <= 0) continue;
+    const type = line.slice(0, sep).toLowerCase();
+    const rest = line.slice(sep + 3);
+    let host: string, port: string, login: string, password: string;
+    const at = rest.lastIndexOf("@");
+    if (at >= 0) {
+      const auth = rest.slice(0, at);
+      const colon = auth.indexOf(":");
+      login = colon >= 0 ? auth.slice(0, colon) : auth;
+      password = colon >= 0 ? auth.slice(colon + 1) : "";
+      [host = "", port = ""] = rest.slice(at + 1).split(":");
+    } else {
+      const parts = rest.split(":");
+      [host = "", port = "", login = ""] = parts;
+      password = parts.slice(3).join(":");
+    }
     if (!isValidHostPort(host, port)) continue;
-    proxies.push({ type: type.toLowerCase(), host, port, login, password, source: "file" });
+    proxies.push({ type, host, port, login, password, source: "file" });
   }
   return proxies;
 }
@@ -155,7 +176,7 @@ export class ProxyStore {
   }
 
   next(): Proxy | undefined {
-    const all = this.state().proxies;
+    const all = this.state().proxies.filter(isHttpProxy);
     if (all.length === 0) return undefined;
     const proxy = all[this.#index % all.length];
     this.#index += 1;

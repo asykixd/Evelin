@@ -16,6 +16,8 @@ const ADDABLE: StepType[] = [
   "swipe",
   "key",
   "text",
+  "waitText",
+  "tapText",
   "wait",
   "launchApp",
   "stopApp",
@@ -202,6 +204,24 @@ function StepParams({ step, scenarios, update }: { step: Step; scenarios: Scenar
       return (
         <div className="params">
           <input className="input" value={step.text} placeholder={t("editor.text")} onChange={(e) => update({ text: e.target.value })} />
+        </div>
+      );
+    case "waitText":
+    case "tapText":
+      return (
+        <div className="params" title={t("editor.findTextHint")}>
+          <input className="input" value={step.text} placeholder={t("editor.findText")} onChange={(e) => update({ text: e.target.value })} />
+          <label className="param">
+            {t("editor.timeoutS")}
+            <input
+              className="input num tiny"
+              type="number"
+              min={0}
+              max={600}
+              value={step.timeoutMs / 1000}
+              onChange={(e) => update({ timeoutMs: Math.min(600, Math.max(0, int(e.target.value))) * 1000 })}
+            />
+          </label>
         </div>
       );
     case "wait":

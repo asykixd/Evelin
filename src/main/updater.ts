@@ -32,12 +32,12 @@ interface Release {
 
 type Target = { kind: "mac"; bundle: string; asset: string } | { kind: "nsis"; asset: string };
 
-function parseVersion(v: string): number[] | undefined {
+export function parseVersion(v: string): number[] | undefined {
   const m = /^v?(\d+)\.(\d+)\.(\d+)$/.exec(v.trim());
   return m ? m.slice(1).map(Number) : undefined;
 }
 
-function isNewer(latest: string, current: string): boolean {
+export function isNewer(latest: string, current: string): boolean {
   const a = parseVersion(latest);
   const b = parseVersion(current);
   if (!a || !b) return false;
@@ -110,6 +110,9 @@ async function downloadRange(url: string, file: FileHandle, start: number, end: 
 // Parallel ranged requests: a single GitHub CDN connection is often throttled.
 async function download(asset: Asset, dest: string, onProgress: (fraction: number) => void): Promise<void> {
   if (asset.size <= 0) throw new Error(t("upd.errEmpty"));
+  // Without a digest there is nothing to check the download against, so don't install it.
+  const expected = asset.digest?.startsWith("sha256:") ? asset.digest.slice("sha256:".length) : undefined;
+  if (!expected) throw new Error(t("upd.errNoDigest"));
   const parts = Math.max(1, Math.min(DOWNLOAD_PARTS, Math.floor(asset.size / MIN_PART_SIZE)));
   const partSize = Math.ceil(asset.size / parts);
   let received = 0;
@@ -127,8 +130,6 @@ async function download(asset: Asset, dest: string, onProgress: (fraction: numbe
   } finally {
     await file.close();
   }
-  const expected = asset.digest?.startsWith("sha256:") ? asset.digest.slice("sha256:".length) : undefined;
-  if (!expected) return;
   const hash = createHash("sha256");
   for await (const chunk of createReadStream(dest)) hash.update(chunk as Buffer);
   if (hash.digest("hex") !== expected) throw new Error(t("upd.errChecksum"));

@@ -13,12 +13,13 @@ Instagram/TikTok registration automation is intentionally out of scope — don't
 ```bash
 npm install          # postinstall downloads Electron + scrcpy-server into resources/
 npm run dev          # electron-vite dev with HMR
-npm run typecheck    # the only static check (no tests/linter)
+npm run typecheck    # TypeScript check for main + renderer (no linter)
+npm test             # vitest unit tests in test/ (pure modules; mock `electron` with vi.mock)
 npm run build && npm start
 npm run dist:mac     # electron-builder → release/<version>/ (dist:win needs Windows/Rosetta for NSIS)
 ```
 
-Packaging config is `electron-builder.yml`; `resources/scrcpy-server` ships via `extraResources`. Tagging `v*` triggers `.github/workflows/release.yml` (draft GitHub release).
+Packaging config is `electron-builder.yml` (incl. `electronFuses` — don't weaken them); `resources/scrcpy-server` ships via `extraResources`; `scripts/fetch-server.mjs` checks it against `SCRCPY_SERVER_SHA256` in `src/shared/scrcpy-version.json` — update both fields together when bumping scrcpy. Tagging `v*` triggers `.github/workflows/release.yml` (draft GitHub release); `.github/workflows/ci.yml` runs typecheck + tests on push/PR. Actions are pinned by commit SHA.
 
 Requires `adb` on PATH. Renderer warnings/errors are forwarded to the terminal in dev.
 
@@ -28,8 +29,8 @@ Requires `adb` on PATH. Renderer warnings/errors are forwarded to the terminal i
 - **Gotcha:** Tango's `subprocess.noneProtocol.spawn*` joins array args with spaces **without escaping**. Build device shell commands with `shellCommand(...)` from `src/main/devices.ts`.
 - Video: `MirrorManager` streams H.264 packets over IPC; `DeviceTile` decodes with `WebCodecsVideoDecoder` + `BitmapVideoFrameRenderer` (not WebGL — Chromium caps WebGL contexts at ~16).
 - Touch coordinates are normalized 0..1 everywhere (IPC, scenarios), scaled to video size in `mirror.ts`.
-- Scenarios: schema + validation in `src/shared/scenario.ts` (used for UI saves and file imports — keep it strict when adding step types; also add `step.<type>` strings to both dictionaries in `src/shared/i18n.ts`, and update `newStep`, `describeStep`, runner `#step`, and `StepParams` in the editor). `src/main/recording.ts` is pure (no ADB) so it can be tested in isolation.
-- Auto-update (`src/main/updater.ts`): polls GitHub `releases/latest`, compares with `app.getVersion()`, asks before downloading. Install in place only for the macOS `.app` (downloads the `-mac-<arch>.zip`, swaps the bundle via a detached shell script after quit — Squirrel.Mac can't be used with ad-hoc signing) and NSIS installs (runs `-setup.exe --updated /S`). Asset names come from `artifactName` in `electron-builder.yml` — keep them in sync. Draft releases are invisible to clients until published.
+- Scenarios: schema + validation in `src/shared/scenario.ts` (used for UI saves and file imports — keep it strict when adding step types; also add `step.<type>` strings to both dictionaries in `src/shared/i18n.ts`, and update `newStep`, `describeStep`, runner `#step`, and `StepParams` in the editor). `src/main/recording.ts` and `src/main/uiautomator.ts` are pure (no ADB) so they can be tested in isolation.
+- Auto-update (`src/main/updater.ts`): polls GitHub `releases/latest`, compares with `app.getVersion()`, asks before downloading. Install in place only for the macOS `.app` (downloads the `-mac-<arch>.zip`, swaps the bundle via a detached shell script after quit — Squirrel.Mac can't be used with ad-hoc signing) and NSIS installs (runs `-setup.exe --updated /S`). Asset names come from `artifactName` in `electron-builder.yml` — keep them in sync. Draft releases are invisible to clients until published. Assets without a GitHub `sha256` digest are refused.
 - Main-process methods report failures as `DeviceResult { success, error }` rather than throwing across IPC where batch semantics apply.
 
 ## Conventions

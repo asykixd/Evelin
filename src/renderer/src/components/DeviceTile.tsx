@@ -99,7 +99,9 @@ export function DeviceTile({ device, selected, focused, recording, run, streamKe
   function onWheel(e: WheelEvent<HTMLCanvasElement>) {
     if (status.kind !== "live") return;
     const { x, y } = point(e);
-    window.farm.control.scroll(targets(), x, y, -e.deltaX / 100, -e.deltaY / 100);
+    // One wheel notch ≈ 100px ≈ 3 lines; scrcpy expects notches.
+    const notch = e.deltaMode === 1 ? 3 : e.deltaMode === 2 ? 1 : 100;
+    window.farm.control.scroll(targets(), x, y, -e.deltaX / notch, -e.deltaY / notch);
   }
 
   const key = (k: NavKey) => window.farm.control.key(targets(), k);

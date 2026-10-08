@@ -3,6 +3,7 @@ import type { AppSettings, StreamSettings } from "./types";
 
 export const STREAM_SIZES: readonly number[] = [480, 720, 1080, 1440];
 export const STREAM_FPS: readonly number[] = [15, 24, 30, 45, 60];
+const ADB_NAME_RE = /(^|[\\/])adb(\.exe)?$/i;
 export const DEFAULT_TEST_URL = "http://httpbin.org/ip";
 
 export const DEFAULT_STREAM: StreamSettings = { maxSize: 720, bitRate: 2, maxFps: 30, stayAwake: true };
@@ -76,7 +77,10 @@ export function mergeSettings(base: AppSettings, patch: unknown): AppSettings {
   if (p.cyberyozhRefreshMin !== undefined) next.cyberyozhRefreshMin = Math.round(range(p.cyberyozhRefreshMin, 0, 1440, "cyberyozhRefreshMin"));
   if (p.adbPath !== undefined) {
     if (typeof p.adbPath !== "string" || p.adbPath.length > 1024 || /[\0\r\n]/.test(p.adbPath)) bad("adbPath");
-    next.adbPath = p.adbPath.trim();
+    const path = p.adbPath.trim();
+    // The path gets executed, so it has to at least be an adb binary rather than any program.
+    if (path && !ADB_NAME_RE.test(path)) throw new Error(t("err.badAdbPath"));
+    next.adbPath = path;
   }
   return next;
 }

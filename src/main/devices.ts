@@ -3,6 +3,7 @@ import { existsSync } from "node:fs";
 import { promisify } from "node:util";
 import { Adb, AdbServerClient, escapeArg } from "@yume-chan/adb";
 import { AdbServerNodeTcpConnector } from "@yume-chan/adb-server-node-tcp";
+import { ConcatStringStream, TextDecoderStream } from "@yume-chan/stream-extra";
 import { t } from "@shared/i18n";
 import type { DeviceInfo, DeviceResult, DeviceState } from "@shared/types";
 
@@ -13,6 +14,10 @@ const ADB_CANDIDATES =
   process.platform === "win32"
     ? ["adb", `${process.env.LOCALAPPDATA}\\Android\\Sdk\\platform-tools\\adb.exe`]
     : ["adb", "/opt/homebrew/bin/adb", "/usr/local/bin/adb", `${process.env.HOME}/Library/Android/sdk/platform-tools/adb`];
+
+const RECONNECT_MIN = 2_000;
+const RECONNECT_MAX = 30_000;
+const REFRESH_INTERVAL = 60_000;
 
 /** Tango joins shell args with spaces without escaping, so escape everything here. */
 export function shellCommand(...args: string[]): string {
@@ -25,19 +30,62 @@ export class DeviceManager {
   #devices = new Map<string, DeviceInfo>();
   #observer: AdbServerClient.DeviceObserver | undefined;
   #listeners = new Set<(devices: DeviceInfo[]) => void>();
+  #retry: NodeJS.Timeout | undefined;
+  #poll: NodeJS.Timeout | undefined;
+  #stopped = false;
 
   /** An empty `adbPath` means auto-detect. */
   constructor(private readonly adbPath: () => string = () => "") {}
 
+  /** Rejects if the ADB server can't be reached, but keeps retrying in the background either way. */
   async start(): Promise<void> {
+    this.#stopped = false;
+    clearInterval(this.#poll);
+    // Battery and proxy aren't pushed by the device, so poll them.
+    this.#poll = setInterval(() => {
+      for (const d of this.#devices.values()) if (d.state === "device") void this.refresh(d.serial);
+    }, REFRESH_INTERVAL);
+    try {
+      await this.#connect();
+    } catch (e) {
+      this.#reconnect();
+      throw e;
+    }
+  }
+
+  async #connect(): Promise<void> {
     await this.#ensureServer();
-    this.#observer = await this.client.trackDevices();
-    this.#observer.onListChange((list) => void this.#sync(list));
-    this.#observer.onError((e) => console.error("[adb] ошибка отслеживания устройств:", e));
-    await this.#sync(this.#observer.current);
+    const observer = await this.client.trackDevices();
+    this.#observer = observer;
+    observer.onListChange((list) => void this.#sync(list));
+    // Fires when the server goes away (`adb kill-server`, platform-tools update): start it again.
+    observer.onError((e) => {
+      if (this.#observer !== observer) return;
+      console.error("[adb] соединение с ADB-сервером потеряно:", e);
+      this.#observer = undefined;
+      void Promise.resolve(observer.stop()).catch(() => {});
+      void this.#sync([]);
+      this.#reconnect();
+    });
+    await this.#sync(observer.current);
+  }
+
+  #reconnect(delay = RECONNECT_MIN): void {
+    if (this.#stopped || this.#retry) return;
+    this.#retry = setTimeout(() => {
+      this.#retry = undefined;
+      this.#connect().then(
+        () => console.log("[adb] подключение к ADB-серверу восстановлено"),
+        () => this.#reconnect(Math.min(delay * 2, RECONNECT_MAX)),
+      );
+    }, delay);
   }
 
   async stop(): Promise<void> {
+    this.#stopped = true;
+    clearInterval(this.#poll);
+    clearTimeout(this.#retry);
+    this.#retry = undefined;
     await this.#observer?.stop();
     for (const adb of this.#adbs.values()) {
       adb.then((a) => a.close()).catch(() => {});
@@ -122,10 +170,26 @@ export class DeviceManager {
     return adb;
   }
 
-  /** Runs the command string as-is (pipes work); escape external input with `shellCommand`. */
-  async shell(serial: string, command: string): Promise<string> {
+  /**
+   * Runs the command string as-is (pipes work); escape external input with `shellCommand`.
+   * With `timeoutMs`, a command still running by then is killed and the call rejects.
+   */
+  async shell(serial: string, command: string, timeoutMs = 0): Promise<string> {
     const adb = await this.getAdb(serial);
-    return adb.subprocess.noneProtocol.spawnWaitText(command);
+    if (timeoutMs <= 0) return adb.subprocess.noneProtocol.spawnWaitText(command);
+    const proc = await adb.subprocess.noneProtocol.spawn(command);
+    let timer: NodeJS.Timeout | undefined;
+    const timeout = new Promise<never>((_, reject) => {
+      timer = setTimeout(() => {
+        void Promise.resolve(proc.kill()).catch(() => {});
+        reject(new Error(t("err.shellTimeout", { s: Math.round(timeoutMs / 1000) })));
+      }, timeoutMs);
+    });
+    try {
+      return await Promise.race([proc.output.pipeThrough(new TextDecoderStream()).pipeThrough(new ConcatStringStream()), timeout]);
+    } finally {
+      clearTimeout(timer);
+    }
   }
 
   async refresh(serial: string): Promise<DeviceInfo | undefined> {
@@ -143,9 +207,11 @@ export class DeviceManager {
         }),
         this.getProxy(serial),
       ]);
-      const info: DeviceInfo = { ...current, model: model || current.model, brand, androidVersion, battery, proxy };
-      // The device may have disconnected while we were waiting.
-      if (this.#devices.has(serial)) {
+      // The device may have disconnected or changed state while we were waiting.
+      const latest = this.#devices.get(serial);
+      if (!latest) return undefined;
+      const info: DeviceInfo = { ...latest, model: model || latest.model, brand, androidVersion, battery, proxy };
+      if (JSON.stringify(latest) !== JSON.stringify(info)) {
         this.#devices.set(serial, info);
         this.#emit();
       }

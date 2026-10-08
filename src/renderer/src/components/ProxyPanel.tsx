@@ -80,7 +80,7 @@ export function ProxyPanel({ targets, run, onOpenSettings }: Props) {
             {t("common.clear")}
           </button>
         </div>
-        <p className="hint">{withCode(t("proxy.format"), { format: "type://host:port[:login[:password]]", hash: "#" })}</p>
+        <p className="hint">{withCode(t("proxy.format"), { format: "type://host:port[:login[:password]]", formatAt: "type://login:password@host:port", hash: "#" })}</p>
         {state && state.proxies.length > 0 && (
           <ul className="proxy-list">
             {state.proxies.slice(0, 50).map((p, i) => (

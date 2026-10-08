@@ -18,8 +18,5 @@ resources/scrcpy-server.version
 # macOS
 .DS_Store
 
-# /device-check screenshots
-.claude/skills/device-check/out/
-
 # electron-builder
 release/

@@ -41,7 +41,7 @@ Think of it as a **multi-device scrcpy GUI** with automation built in. It is use
 | ⏺️ **Action recording** | Record what you do, either with a finger on the phone itself or with the mouse on its tile. Taps, swipes, keys, text, app launches and the pauses between them are saved as a scenario. |
 | 🧩 **Scenarios** | Step editor with repeats (including infinite), a delay between runs, parallel runs on any set of devices, and import/export to JSON. |
 | ⚡ **Batch actions** | Buttons, text input, app launch, APK install, screenshots, reboot and raw `adb shell` on many devices at once. |
-| 🌐 **Proxies** | Import from a file (`type://host:port[:login[:password]]`) or from the CyberYozh API. Proxies are handed out round-robin through Android's system HTTP proxy, and you can check each device's IP. |
+| 🌐 **Proxies** | Import from a file (`type://host:port[:login[:password]]` or `type://login:password@host:port`) or from the CyberYozh API. Proxies are handed out round-robin through Android's system HTTP proxy, and you can check each device's IP. |
 | ⚙️ **Settings** | Interface language, stream quality (resolution, bitrate, FPS, keep screen on), CyberYozh API key with periodic list refresh, the URL used for IP checks, a custom `adb` path, and confirmations for destructive actions. |
 
 ## Getting started
@@ -80,7 +80,8 @@ A scenario is a list of steps that runs on one device or many in parallel.
 |---|---|
 | Tap / Swipe / Gesture | Touch at a point. Coordinates are a percentage of the screen, so one scenario works across resolutions. *Gesture* replays a recorded finger path. |
 | Key | Back, Home, Recents, Power, volume |
-| Type text | Types text into the focused field |
+| Type text | Types text into the focused field (non-Latin text such as Cyrillic is pasted via the clipboard) |
+| Wait for text / Tap on text | Waits until an element with the given text or description appears on screen (via `uiautomator dump`), optionally taps it. Fails after the timeout. |
 | Pause | Fixed, or random within a min–max range |
 | Launch / Stop app, Clear data | `monkey`, `am force-stop`, `pm clear` |
 | Next proxy / Reset proxy | Takes the next proxy from the shared pool (each device gets its own) |
@@ -137,6 +138,7 @@ npm run dev          # dev mode with HMR
 |---|---|
 | `npm run dev` | Run in development with hot reload |
 | `npm run typecheck` | TypeScript check for main and renderer |
+| `npm test` | Unit tests (vitest) |
 | `npm run build && npm start` | Production build, run locally |
 | `npm run dist:mac` | `.dmg` and `.zip` for arm64 and x64 into `release/<version>/` |
 | `npm run dist:win` | NSIS installer and portable `.zip` for x64 |
@@ -166,6 +168,7 @@ src/
 | `main/devices.ts` | `DeviceManager`: connection to the ADB server ([Tango](https://github.com/yume-chan/ya-webadb)), device tracking, shell, proxy settings |
 | `main/mirror.ts` | `MirrorManager`: scrcpy session per device, video packets to the UI, touch/scroll/key/text input |
 | `main/recording.ts` | Pure recording logic: `getevent` parsing and conversion of events to steps |
+| `main/uiautomator.ts` | Pure parsing of `uiautomator dump` XML for the text steps |
 | `main/recorder.ts` | `Recorder`: records from the device and from the UI |
 | `main/runner.ts` | `ScenarioRunner`: runs scenarios, cancellation via `AbortSignal` |
 | `main/scenarios.ts` | `ScenarioStore`: persists to `userData/scenarios.json` |

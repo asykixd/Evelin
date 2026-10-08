@@ -15,6 +15,15 @@ extraResources:
     to: resources/scrcpy-server
 
 asar: true
+
+# Without a notarized signature the binary is the only line of defense:
+# don't let it run as plain Node or load code from outside the checked asar.
+electronFuses:
+  runAsNode: false
+  enableNodeOptionsEnvironmentVariable: false
+  enableNodeCliInspectArguments: false
+  enableEmbeddedAsarIntegrityValidation: true
+  onlyLoadAppFromAsar: true
 electronLanguages: [en, ru]
 
 mac:

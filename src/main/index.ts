@@ -155,6 +155,8 @@ function finite(value: unknown): number {
 }
 
 const TOUCH_ACTIONS = new Set(["down", "move", "up"]);
+/** The console has no cancel button, so endless commands like `logcat` must not block it forever. */
+const SHELL_TIMEOUT = 60_000;
 
 function streamOf(bytes: Uint8Array): ReadableStream<Uint8Array> {
   return new ReadableStream<Uint8Array>({
@@ -219,7 +221,7 @@ function registerIpc(): void {
   handle("batch:shell", (list: unknown, command: unknown) => {
     if (typeof command !== "string" || !command.trim()) throw new Error(t("err.emptyCommand"));
     // Intentionally unescaped: an operator console that runs on the phone, not on the host.
-    return devices.forEach(serials(list), (s) => devices.shell(s, command));
+    return devices.forEach(serials(list), (s) => devices.shell(s, command, SHELL_TIMEOUT));
   });
 
   handle("batch:launchApp", (list: unknown, pkg: unknown) => {
@@ -403,6 +405,15 @@ function registerIpc(): void {
   handle("updates:download", () => updater.download());
   handle("updates:install", () => updater.install());
 }
+
+// A second instance would fight over device sessions and the same data files.
+if (!app.requestSingleInstanceLock()) app.exit(0);
+
+app.on("second-instance", () => {
+  if (!win) return;
+  if (win.isMinimized()) win.restore();
+  win.focus();
+});
 
 app.whenReady().then(async () => {
   // Vite HMR needs inline scripts in dev.

@@ -192,78 +192,75 @@ export class MirrorManager {
     }
   }
 
-  // Per-device control errors are swallowed so one dropped device doesn't break broadcast to the rest.
+  async #controlled(serial: string): Promise<{ session: Session; ctl: NonNullable<Client["controller"]> }> {
+    const session = await this.#ready(serial);
+    const ctl = session?.client.controller;
+    if (!session || !ctl) throw new Error(t("err.mirrorEnded"));
+    return { session, ctl };
+  }
+
+  // The *One methods throw, so scenario steps fail instead of silently doing nothing on a dead session.
+  // The broadcast methods swallow per-device errors so one dropped device doesn't break input to the rest.
+
+  async touchOne(serial: string, event: TouchEvent): Promise<void> {
+    const { session, ctl } = await this.#controlled(serial);
+    const { width, height } = session.video;
+    await ctl.injectTouch({
+      action: TOUCH_ACTIONS[event.action],
+      pointerId: ScrcpyPointerId.Finger,
+      pointerX: clamp01(event.x) * width,
+      pointerY: clamp01(event.y) * height,
+      videoWidth: width,
+      videoHeight: height,
+      pressure: event.action === "up" ? 0 : 1,
+      actionButton: 0,
+      buttons: 0,
+    });
+  }
+
+  async keyOne(serial: string, key: NavKey): Promise<void> {
+    const { ctl } = await this.#controlled(serial);
+    for (const action of [AndroidKeyEventAction.Down, AndroidKeyEventAction.Up]) {
+      await ctl.injectKeyCode({ action, keyCode: KEYS[key], repeat: 0, metaState: 0 });
+    }
+  }
+
+  async textOne(serial: string, text: string): Promise<void> {
+    const { ctl } = await this.#controlled(serial);
+    // injectText goes through the key character map and silently drops non-ASCII (e.g. Cyrillic);
+    // pasting via the clipboard works for any text. Sequence 0 means no ack is awaited.
+    if (/^[\x20-\x7e\t\n]*$/.test(text)) await ctl.injectText(text);
+    else await ctl.setClipboard({ sequence: 0n, paste: true, content: text });
+  }
 
   async touch(serials: string[], event: TouchEvent): Promise<void> {
-    await Promise.all(
-      serials.map(async (serial) => {
-        const s = await this.#ready(serial);
-        const ctl = s?.client.controller;
-        if (!s || !ctl) return;
-        const { width, height } = s.video;
-        await ctl
-          .injectTouch({
-            action: TOUCH_ACTIONS[event.action],
-            pointerId: ScrcpyPointerId.Finger,
-            pointerX: clamp01(event.x) * width,
-            pointerY: clamp01(event.y) * height,
-            videoWidth: width,
-            videoHeight: height,
-            pressure: event.action === "up" ? 0 : 1,
-            actionButton: 0,
-            buttons: 0,
-          })
-          .catch(() => {});
-      }),
-    );
+    await Promise.all(serials.map((serial) => this.touchOne(serial, event).catch(() => {})));
   }
 
   async scroll(serials: string[], x: number, y: number, dx: number, dy: number): Promise<void> {
-    await Promise.all(
+    await Promise.allSettled(
       serials.map(async (serial) => {
-        const s = await this.#ready(serial);
-        const ctl = s?.client.controller;
-        if (!s || !ctl) return;
-        const { width, height } = s.video;
-        await ctl
-          .injectScroll({
-            pointerX: clamp01(x) * width,
-            pointerY: clamp01(y) * height,
-            videoWidth: width,
-            videoHeight: height,
-            scrollX: clamp(dx, -1, 1),
-            scrollY: clamp(dy, -1, 1),
-            buttons: 0,
-          })
-          .catch(() => {});
+        const { session, ctl } = await this.#controlled(serial);
+        const { width, height } = session.video;
+        await ctl.injectScroll({
+          pointerX: clamp01(x) * width,
+          pointerY: clamp01(y) * height,
+          videoWidth: width,
+          videoHeight: height,
+          scrollX: clamp(dx, -1, 1),
+          scrollY: clamp(dy, -1, 1),
+          buttons: 0,
+        });
       }),
     );
   }
 
   async key(serials: string[], key: NavKey): Promise<void> {
-    const keyCode = KEYS[key];
-    await Promise.all(
-      serials.map(async (serial) => {
-        const ctl = (await this.#ready(serial))?.client.controller;
-        if (!ctl) return;
-        try {
-          for (const action of [AndroidKeyEventAction.Down, AndroidKeyEventAction.Up]) {
-            await ctl.injectKeyCode({ action, keyCode, repeat: 0, metaState: 0 });
-          }
-        } catch {
-          // device disconnected
-        }
-      }),
-    );
+    await Promise.all(serials.map((serial) => this.keyOne(serial, key).catch(() => {})));
   }
 
   async text(serials: string[], text: string): Promise<void> {
-    await Promise.all(
-      serials.map(async (serial) => {
-        const ctl = (await this.#ready(serial))?.client.controller;
-        await ctl?.injectText(text).catch(() => {});
-      }),
-    );
+    await Promise.all(serials.map((serial) => this.textOne(serial, text).catch(() => {})));
   }
 }
 
