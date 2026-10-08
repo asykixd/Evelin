@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Evelin: free Android device farm manager for macOS and Windows</title>
+<meta name="description" content="Mirror, control and automate dozens of USB-connected Android phones from one desktop window. Multi-device scrcpy GUI with broadcast input, action recording, automation scenarios, batch ADB commands and proxy rotation. Free and open source, no root.">
+<meta name="keywords" content="android device farm, phone farm software, control multiple android phones from pc, multi-device scrcpy, scrcpy gui, android automation without code, adb batch commands, android screen mirroring, mobile device lab">
+<link rel="canonical" href="https://asykixd.github.io/Evelin/">
+<link rel="icon" type="image/png" href="icon.png">
+<meta name="theme-color" content="#0f1115">
+
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Evelin">
+<meta property="og:title" content="Evelin: Android device farm manager">
+<meta property="og:description" content="Mirror, control and automate dozens of Android phones from one window. Free, open source, no root.">
+<meta property="og:url" content="https://asykixd.github.io/Evelin/">
+<meta property="og:image" content="https://asykixd.github.io/Evelin/social-preview.png">
+<meta property="og:image:width" content="1280">
+<meta property="og:image:height" content="640">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Evelin: Android device farm manager">
+<meta name="twitter:description" content="Mirror, control and automate dozens of Android phones from one window. Free, open source, no root.">
+<meta name="twitter:image" content="https://asykixd.github.io/Evelin/social-preview.png">
+
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  "name": "Evelin",
+  "description": "Desktop control panel for a farm of USB-connected Android devices: live screens, broadcast input, action recording, automation scenarios, batch ADB commands and proxy rotation.",
+  "applicationCategory": "DeveloperApplication",
+  "operatingSystem": "macOS, Windows",
+  "softwareVersion": "1.1.9",
+  "license": "https://opensource.org/licenses/MIT",
+  "url": "https://asykixd.github.io/Evelin/",
+  "downloadUrl": "https://github.com/asykixd/Evelin/releases/latest",
+  "codeRepository": "https://github.com/asykixd/Evelin",
+  "image": "https://asykixd.github.io/Evelin/social-preview.png",
+  "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" }
+}
+</script>
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  "mainEntity": [
+    { "@type": "Question", "name": "How do I control several Android phones from my computer at once?",
+      "acceptedAnswer": { "@type": "Answer", "text": "Connect them over USB, enable USB debugging and open Evelin. Every authorised device appears in the grid. Select the devices and turn on Broadcast input: a tap or key press on one of them is repeated on all of them." } },
+    { "@type": "Question", "name": "Do the phones need to be rooted?",
+      "acceptedAnswer": { "@type": "Answer", "text": "No. Evelin uses standard ADB and the scrcpy server, which run with normal USB-debugging permissions." } },
+    { "@type": "Question", "name": "How is Evelin different from scrcpy?",
+      "acceptedAnswer": { "@type": "Answer", "text": "scrcpy mirrors one device per window. Evelin runs scrcpy for every connected device in a single window and adds broadcast input, action recording, scenarios, batch commands and proxy management." } },
+    { "@type": "Question", "name": "Can I automate taps and swipes without writing code?",
+      "acceptedAnswer": { "@type": "Answer", "text": "Yes. Record the task on the phone or on its tile, and the recording becomes a scenario you can edit, loop and run on any set of devices. Steps can also wait for text on screen and tap it." } },
+    { "@type": "Question", "name": "Is Evelin free?",
+      "acceptedAnswer": { "@type": "Answer", "text": "Yes. Evelin is open source under the MIT license." } }
+  ]
+}
+</script>
+
+<style>
+  :root {
+    --bg: #0f1115; --panel: #171a21; --border: #2a2f3a; --text: #e6e8ee; --muted: #8a93a6;
+    --accent: #4f8cff; --ok: #34d399; --ok-deep: #059669;
+  }
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 16px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+  a { color: var(--accent); }
+  .wrap { max-width: 1040px; margin: 0 auto; padding: 0 16px; }
+  header.hero { text-align: center; padding: 72px 16px 48px; }
+  .hero img { width: 112px; height: 112px; }
+  h1 { font-size: clamp(30px, 5vw, 46px); line-height: 1.15; margin: 16px 0 12px; letter-spacing: -0.02em; }
+  .lead { font-size: clamp(17px, 2.2vw, 20px); color: var(--muted); max-width: 720px; margin: 0 auto 28px; }
+  .cta { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+  .btn { display: inline-block; padding: 12px 22px; border-radius: 10px; font-weight: 600; text-decoration: none; border: 1px solid var(--border); color: var(--text); background: var(--panel); }
+  .btn.primary { background: linear-gradient(180deg, var(--ok), var(--ok-deep)); color: #04130d; border-color: transparent; }
+  .platforms { color: var(--muted); font-size: 14px; margin-top: 14px; }
+  section { padding: 40px 0; border-top: 1px solid var(--border); }
+  h2 { font-size: 26px; margin: 0 0 20px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; }
+  .card { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 18px; }
+  .card h3 { margin: 0 0 6px; font-size: 17px; }
+  .card p { margin: 0; color: var(--muted); font-size: 15px; }
+  ul.uses { padding-left: 20px; margin: 0; }
+  ul.uses li { margin: 6px 0; }
+  code { background: var(--panel); border: 1px solid var(--border); border-radius: 6px; padding: 1px 6px; font-size: 14px; }
+  ol.steps { padding-left: 20px; } ol.steps li { margin: 8px 0; }
+  details { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; margin: 10px 0; }
+  summary { cursor: pointer; font-weight: 600; }
+  details p { color: var(--muted); margin: 10px 0 0; }
+  footer { padding: 32px 16px 48px; color: var(--muted); font-size: 14px; text-align: center; border-top: 1px solid var(--border); }
+</style>
+</head>
+<body>
+<header class="hero wrap">
+  <img src="icon.png" alt="Evelin logo: Android phones in a grid" width="112" height="112">
+  <h1>Control a whole Android phone farm from one window</h1>
+  <p class="lead">Evelin mirrors every USB-connected Android device in a live grid, repeats your taps on all selected phones, and replays recorded automation scenarios across the farm. Free, open source, no root.</p>
+  <div class="cta">
+    <a class="btn primary" href="https://github.com/asykixd/Evelin/releases/latest">Download for macOS or Windows</a>
+    <a class="btn" href="https://github.com/asykixd/Evelin">View on GitHub</a>
+  </div>
+  <p class="platforms">macOS (Apple Silicon and Intel) · Windows 10/11 · Android 5.0+ · MIT license</p>
+</header>
+
+<main class="wrap">
+  <section aria-labelledby="features">
+    <h2 id="features">Features</h2>
+    <div class="grid">
+      <div class="card"><h3>Live screens</h3><p>Every connected device in one grid, streamed via scrcpy 3 (H.264) and hardware-decoded with WebCodecs.</p></div>
+      <div class="card"><h3>Mouse control</h3><p>Click and drag to tap and swipe, scroll with the wheel, right-click for Back. Text input works in any language.</p></div>
+      <div class="card"><h3>Broadcast input</h3><p>A tap or key press on one selected phone is repeated on every selected phone at the same moment.</p></div>
+      <div class="card"><h3>Action recording</h3><p>Record with a finger on the phone or with the mouse on its tile. Taps, swipes, keys, text and pauses become a scenario.</p></div>
+      <div class="card"><h3>No-code scenarios</h3><p>Loops, random pauses, every-N-th-run steps, nested scenarios, “wait for text” and “tap on text” steps. Import and export as JSON.</p></div>
+      <div class="card"><h3>Batch ADB actions</h3><p>Install an APK, launch or clear apps, take screenshots, reboot or run <code>adb shell</code> on many devices in one click.</p></div>
+      <div class="card"><h3>Per-device proxies</h3><p>Round-robin HTTP proxies from a file or the CyberYozh API, applied through Android's system proxy, with an IP check per device.</p></div>
+      <div class="card"><h3>Safe by design</h3><p>Sandboxed renderer, strict IPC validation, escaped shell arguments, encrypted credentials and checksum-verified auto-updates.</p></div>
+    </div>
+  </section>
+
+  <section aria-labelledby="uses">
+    <h2 id="uses">Who it's for</h2>
+    <ul class="uses">
+      <li><strong>QA teams</strong> running manual and regression tests on many Android models and screen sizes at once.</li>
+      <li><strong>Device labs</strong> where one person looks after a rack of test phones.</li>
+      <li><strong>Repetitive phone tasks</strong>: record once, replay on every device with randomised pauses.</li>
+      <li><strong>Bulk device administration</strong>: APK installs, app resets, screenshots and reboots across the farm.</li>
+    </ul>
+  </section>
+
+  <section aria-labelledby="start">
+    <h2 id="start">Get started in a minute</h2>
+    <ol class="steps">
+      <li>Install <a href="https://developer.android.com/tools/releases/platform-tools">Android platform-tools</a> so <code>adb</code> is available.</li>
+      <li>Enable <strong>USB debugging</strong> on each phone and connect them through a USB hub.</li>
+      <li><a href="https://github.com/asykixd/Evelin/releases/latest">Download Evelin</a>, open it and accept the RSA prompt on every phone.</li>
+    </ol>
+  </section>
+
+  <section aria-labelledby="faq">
+    <h2 id="faq">FAQ</h2>
+    <details><summary>How do I control several Android phones from my computer at once?</summary><p>Connect them over USB, enable USB debugging and open Evelin. Select the devices and turn on Broadcast input: a tap or key press on one of them is repeated on all of them.</p></details>
+    <details><summary>Do the phones need to be rooted?</summary><p>No. Evelin uses standard ADB and the scrcpy server, which run with normal USB-debugging permissions.</p></details>
+    <details><summary>How is Evelin different from scrcpy?</summary><p>scrcpy mirrors one device per window. Evelin runs scrcpy for every connected device in a single window and adds broadcast input, action recording, scenarios, batch commands and proxy management.</p></details>
+    <details><summary>Can I automate taps and swipes without writing code?</summary><p>Yes. Record the task and it becomes a scenario you can edit, loop and run on any set of devices. Coordinates are stored as a percentage of the screen, so one scenario works across resolutions.</p></details>
+    <details><summary>How many devices can it handle?</summary><p>That depends on your USB hubs and CPU. Lower the stream resolution, bitrate or FPS in Settings to fit more devices on one machine.</p></details>
+    <details><summary>Is it free?</summary><p>Yes. Evelin is open source under the MIT license.</p></details>
+  </section>
+</main>
+
+<footer class="wrap">
+  Evelin is open source under the MIT license · <a href="https://github.com/asykixd/Evelin">Source code</a> · <a href="https://github.com/asykixd/Evelin/releases">Releases</a> · <a href="https://github.com/asykixd/Evelin/discussions">Discussions</a>
+</footer>
+</body>
+</html>

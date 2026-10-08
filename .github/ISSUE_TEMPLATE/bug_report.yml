@@ -1,0 +1,37 @@
+name: Bug report
+description: Something doesn't work as expected
+labels: [bug]
+body:
+  - type: input
+    id: version
+    attributes:
+      label: Evelin version
+      description: Shown next to the logo in the top bar.
+      placeholder: "1.1.9"
+    validations:
+      required: true
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating system
+      options: [macOS (Apple Silicon), macOS (Intel), Windows]
+    validations:
+      required: true
+  - type: input
+    id: devices
+    attributes:
+      label: Devices
+      description: Phone models, Android versions and how many are connected.
+      placeholder: "3× Pixel 7 (Android 14), 1× Galaxy A52 (Android 13)"
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: Steps to reproduce, what you expected and what you saw. Error text from the log panel helps.
+    validations:
+      required: true
+  - type: textarea
+    id: scenario
+    attributes:
+      label: Scenario (optional)
+      description: If a scenario misbehaves, attach the exported `.evelin.json`. Remove proxy credentials and anything private first.

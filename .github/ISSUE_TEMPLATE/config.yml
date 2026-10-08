@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Questions and ideas
+    url: https://github.com/asykixd/Evelin/discussions
+    about: Ask how to do something or share your setup.
+  - name: Security vulnerability
+    url: https://github.com/asykixd/Evelin/security/advisories/new
+    about: Report privately, please don't open a public issue.

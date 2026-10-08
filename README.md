@@ -8,12 +8,14 @@
 
 Live screens, mouse control broadcast to every selected device, action recording, reusable automation scenarios, batch ADB commands and proxy rotation. Built on ADB and scrcpy. No root required.
 
+[![Latest release](https://img.shields.io/github/v/release/asykixd/Evelin?label=release)](https://github.com/asykixd/Evelin/releases/latest)
+[![Downloads](https://img.shields.io/github/downloads/asykixd/Evelin/total)](https://github.com/asykixd/Evelin/releases)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 ![Platforms](https://img.shields.io/badge/platform-macOS%20%7C%20Windows-lightgrey)
 ![Electron](https://img.shields.io/badge/Electron-44-47848F?logo=electron&logoColor=white)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5.9-3178C6?logo=typescript&logoColor=white)
 
-[Download](https://github.com/asykixd/Evelin/releases/latest) · [Features](#features) · [Getting started](#getting-started) · [Scenarios](#scenarios) · [FAQ](#faq) · [Building](#building-from-source)
+[Download](https://github.com/asykixd/Evelin/releases/latest) · [Website](https://asykixd.github.io/Evelin/) · [Features](#features) · [Getting started](#getting-started) · [Scenarios](#scenarios) · [FAQ](#faq) · [Building](#building-from-source)
 
 </div>
 
@@ -122,6 +124,10 @@ Yes. Evelin is open source under the MIT license.
 - Arguments built into device shell commands are escaped. Raw input runs only from the console and from `ADB shell` steps.
 - The CyberYozh token and proxy credentials are encrypted at rest with Electron `safeStorage` (Keychain, DPAPI or libsecret).
 - The CSP is strict. Navigation and new windows are blocked, and permission requests are denied.
+
+## Contributing
+
+Questions and ideas go to [Discussions](https://github.com/asykixd/Evelin/discussions), bugs to [Issues](https://github.com/asykixd/Evelin/issues/new/choose). See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup and [SECURITY.md](SECURITY.md) for reporting vulnerabilities. If Evelin saves you time, a ⭐ helps other people find it.
 
 ## Building from source
 
