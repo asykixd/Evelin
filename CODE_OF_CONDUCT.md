@@ -6,4 +6,4 @@ In short: be respectful and constructive in issues, discussions and pull request
 
 Maintainers may edit or remove comments, close threads and block participants who don't follow these rules.
 
-Report problems privately to the maintainer at asyki@list.ru. Reports are kept confidential.
+Report problems with GitHub's **Report content** option on the comment or issue. Reports are kept confidential.
